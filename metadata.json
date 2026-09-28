@@ -1,0 +1,9 @@
+{
+  "name": "JDMart",
+  "description": "JDMart - Buy Smart, Sell Faster. Complete multi-role platform for Buyers, Sellers, Riders, Job Seekers, Employers, and Administrators.",
+  "requestFrame": "true",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

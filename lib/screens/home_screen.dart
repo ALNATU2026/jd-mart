@@ -763,7 +763,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ProductDetailScreen(product: item),
+                            builder: (_) => ProductDetailScreen(productMap: item),
                           ),
                         );
                       },
