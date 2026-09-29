@@ -34,7 +34,7 @@ interface AppContextType {
   logout: () => void;
   updateUserProfile: (updates: Partial<User>) => void;
   users: User[];
-  updateUserStatus: (userId: string, status: 'active' | 'suspended', verified?: boolean) => void;
+  updateUserStatus: (userId: string, status: 'active' | 'suspended' | 'pending', verified?: boolean) => void;
 
   // Categories & Products
   categories: Category[];
@@ -211,7 +211,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     showToast('Profile updated successfully');
   };
 
-  const updateUserStatus = (userId: string, status: 'active' | 'suspended', verified?: boolean) => {
+  const updateUserStatus = (userId: string, status: 'active' | 'suspended' | 'pending', verified?: boolean) => {
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id === userId) {

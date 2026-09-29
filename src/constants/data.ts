@@ -60,7 +60,7 @@ export const CATEGORIES: CategoryItem[] = [
   { id: '6', title: 'More', icon: '/assets/icons/more.png', color: '#F3F5F9' },
 ];
 
-export const FLASH_DEALS: Product[] = [
+export const FLASH_DEALS: any[] = [
   {
     id: 'p1',
     image: '/assets/images/smartwatch.jpg',

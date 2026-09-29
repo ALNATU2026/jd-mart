@@ -38,6 +38,7 @@ export interface Product {
   status: 'active' | 'inactive' | 'pending';
   deliveryAvailable: boolean;
   createdAt: string;
+  timer?: string;
 }
 
 export interface Review {

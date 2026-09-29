@@ -1,4 +1,8 @@
-export type PlatformRole = 'Buyer' | 'Seller' | 'Rider' | 'Job Seeker' | 'Employer' | 'Admin';
+export * from './types/index';
+
+import { UserRole } from './types/index';
+
+export type PlatformRole = UserRole;
 
 export type ScreenName =
   | 'splash'
@@ -7,21 +11,8 @@ export type ScreenName =
   | 'signup'
   | 'forgot-password'
   | 'home'
-  | 'product-detail';
-
-export interface Product {
-  id: string;
-  image: string;
-  title: string;
-  price: string;
-  oldPrice: string;
-  discount: string;
-  timer: string;
-  description?: string;
-  rating?: number;
-  reviewsCount?: number;
-  category?: string;
-}
+  | 'product-detail'
+  | string;
 
 export interface MenuItemModel {
   id: string;
@@ -47,9 +38,4 @@ export interface OnboardingItem {
   image: string;
   title: string;
   subtitle: string;
-}
-
-export interface CartItem {
-  product: Product;
-  quantity: number;
 }

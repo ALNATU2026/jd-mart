@@ -133,7 +133,7 @@ export const AdminUsersScreen: React.FC = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => updateUserStatus(u.id, u.status, !u.verified)}
+                          onClick={() => updateUserStatus(u.id, u.status === 'suspended' ? 'suspended' : 'active', !u.verified)}
                           className="px-2.5 py-1 bg-blue-50 text-[#1E40AF] hover:bg-blue-100 rounded-lg text-[11px] font-bold"
                         >
                           {u.verified ? 'Unverify' : 'Verify'}
