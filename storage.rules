@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    function isValidDocument() {
+      return (request.resource.contentType.matches('application/pdf') ||
+              request.resource.contentType.matches('application/msword') ||
+              request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.wordprocessingml.document') ||
+              request.resource.contentType.matches('text/plain') ||
+              request.resource.contentType.matches('image/.*'))
+        && request.resource.size <= 15 * 1024 * 1024;
+    }
+
+    // User profile images
+    match /users/{userId}/profile/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId) && isValidImage();
+      allow delete: if isOwner(userId);
+    }
+
+    // User employee CVs
+    match /users/{userId}/cv/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isValidDocument();
+      allow delete: if isOwner(userId);
+    }
+
+    // Product images
+    match /products/{productId}/images/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isValidImage();
+      allow delete: if isAuthenticated();
+    }
+
+    // Seller business documents
+    match /sellers/{sellerId}/documents/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidDocument();
+      allow delete: if isAuthenticated();
+    }
+
+    // Job attachments
+    match /jobs/{jobId}/attachments/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isValidDocument();
+      allow delete: if isAuthenticated();
+    }
+
+    // Order files
+    match /orders/{orderId}/files/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidDocument();
+      allow delete: if isAuthenticated();
+    }
+
+    // Fallback for general authenticated uploads
+    match /uploads/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && (isValidImage() || isValidDocument());
+      allow delete: if isOwner(userId);
+    }
+  }
+}

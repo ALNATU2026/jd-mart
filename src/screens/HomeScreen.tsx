@@ -223,8 +223,31 @@ export const HomeScreen: React.FC = () => {
           </div>
 
           {/* Flash Deals Product Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {featuredProducts.slice(0, 4).map((product) => {
+          {featuredProducts.length === 0 ? (
+            <div className="bg-slate-50/70 rounded-2xl p-8 text-center border border-slate-200/80">
+              <Zap className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+              <h3 className="text-sm font-bold text-slate-800 mb-1">Fresh Deals Coming Soon</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto mb-4">
+                Verified sellers are currently updating their inventory and special promotions. Are you a merchant or store owner?
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => navigate('/onboarding/seller')}
+                  className="px-4 py-2 bg-[#1E40AF] text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors"
+                >
+                  Start Selling on JD Mart
+                </button>
+                <button
+                  onClick={() => navigate('/categories')}
+                  className="px-4 py-2 bg-white text-slate-700 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
+                >
+                  Browse Categories
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {featuredProducts.slice(0, 4).map((product) => {
               const inWish = isInWishlist(product.id);
               return (
                 <div
@@ -305,6 +328,7 @@ export const HomeScreen: React.FC = () => {
               );
             })}
           </div>
+        )}
         </div>
       </section>
 
@@ -372,66 +396,82 @@ export const HomeScreen: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {featuredSellers.map((store) => (
-            <div
-              key={store.id}
-              className="bg-white rounded-3xl p-5 border border-slate-200/80 hover:shadow-xl transition-all flex flex-col justify-between"
+        {featuredSellers.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 text-center border border-slate-200/80">
+            <Store className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+            <h3 className="text-sm font-bold text-slate-800 mb-1">Join as a Verified Merchant</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mb-4">
+              Open your branded storefront on JD Mart. Receive online customer orders with integrated motorbike dispatch riders.
+            </p>
+            <button
+              onClick={() => navigate('/onboarding/seller')}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors"
             >
-              <div>
-                <div className="flex items-start gap-3 mb-3">
-                  <img
-                    src={store.logo}
-                    alt={store.name}
-                    className="w-12 h-12 rounded-2xl object-cover border border-slate-200 p-1 bg-slate-50"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/assets/logos/applogo.png';
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <h3 className="text-sm font-black text-slate-800 truncate">{store.name}</h3>
-                      {store.verified && (
-                        <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                      )}
+              Register Your Store
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {featuredSellers.map((store) => (
+              <div
+                key={store.id}
+                className="bg-white rounded-3xl p-5 border border-slate-200/80 hover:shadow-xl transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start gap-3 mb-3">
+                    <img
+                      src={store.logo}
+                      alt={store.name}
+                      className="w-12 h-12 rounded-2xl object-cover border border-slate-200 p-1 bg-slate-50"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/assets/logos/applogo.png';
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-sm font-black text-slate-800 truncate">{store.name}</h3>
+                        {store.verified && (
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{store.location}</span>
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span>{store.location}</span>
-                    </p>
+                  </div>
+
+                  <p className="text-xs text-slate-600 line-clamp-2 mb-4 leading-relaxed">
+                    {store.description}
+                  </p>
+
+                  <div className="flex items-center justify-between text-xs text-slate-500 py-2 border-t border-slate-100">
+                    <div className="flex items-center gap-1">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                      <span className="font-bold text-slate-800">{store.rating} rating</span>
+                    </div>
+                    <span>{store.totalSales} orders delivered</span>
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-600 line-clamp-2 mb-4 leading-relaxed">
-                  {store.description}
-                </p>
-
-                <div className="flex items-center justify-between text-xs text-slate-500 py-2 border-t border-slate-100">
-                  <div className="flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                    <span className="font-bold text-slate-800">{store.rating} rating</span>
-                  </div>
-                  <span>{store.totalSales} orders delivered</span>
+                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                  <button
+                    onClick={() => navigate(`/store/${store.slug}`)}
+                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-colors text-center"
+                  >
+                    Visit Store
+                  </button>
+                  <button
+                    onClick={() => navigate(`/shop?seller=${encodeURIComponent(store.name)}`)}
+                    className="flex-1 py-2 bg-[#1E40AF] hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors text-center"
+                  >
+                    View Products
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
-                <button
-                  onClick={() => navigate(`/store/${store.slug}`)}
-                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-colors text-center"
-                >
-                  Visit Store
-                </button>
-                <button
-                  onClick={() => navigate(`/shop?seller=${encodeURIComponent(store.name)}`)}
-                  className="flex-1 py-2 bg-[#1E40AF] hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors text-center"
-                >
-                  View Products
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* POPULAR JOBS & GIGS SECTION */}
@@ -452,45 +492,69 @@ export const HomeScreen: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {popularJobs.map((job) => (
-            <div
-              key={job.id}
-              onClick={() => navigate(`/jobs/${job.id}`)}
-              className="bg-white rounded-2xl p-5 border border-slate-200/80 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1E40AF] text-[10px] font-bold uppercase tracking-wider mb-1.5">
-                      {job.category}
+        {popularJobs.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 text-center border border-slate-200/80">
+            <Briefcase className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
+            <h3 className="text-sm font-bold text-slate-800 mb-1">Post Employment Vacancies</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mb-4">
+              Hire vetted riders, retail managers, sales representatives, and gig workers across Sierra Leone.
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => navigate('/employer')}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors"
+              >
+                Post a Job Vacancy
+              </button>
+              <button
+                onClick={() => navigate('/jobs')}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-colors"
+              >
+                Explore Opportunities
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {popularJobs.map((job) => (
+              <div
+                key={job.id}
+                onClick={() => navigate(`/jobs/${job.id}`)}
+                className="bg-white rounded-2xl p-5 border border-slate-200/80 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1E40AF] text-[10px] font-bold uppercase tracking-wider mb-1.5">
+                        {job.category}
+                      </span>
+                      <h3 className="text-sm font-bold text-slate-900 hover:text-[#1E40AF] transition-colors">
+                        {job.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">{job.employerName}</p>
+                    </div>
+
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold shrink-0">
+                      {job.type}
                     </span>
-                    <h3 className="text-sm font-bold text-slate-900 hover:text-[#1E40AF] transition-colors">
-                      {job.title}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">{job.employerName}</p>
                   </div>
 
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold shrink-0">
-                    {job.type}
-                  </span>
+                  <p className="text-xs text-slate-600 line-clamp-2 my-3 leading-relaxed">
+                    {job.description}
+                  </p>
                 </div>
 
-                <p className="text-xs text-slate-600 line-clamp-2 my-3 leading-relaxed">
-                  {job.description}
-                </p>
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                  <span className="font-extrabold text-[#1E40AF]">{job.salary}</span>
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>{job.location}</span>
+                  </span>
+                </div>
               </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
-                <span className="font-extrabold text-[#1E40AF]">{job.salary}</span>
-                <span className="text-slate-400 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {job.location}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* HOW JD MART WORKS */}

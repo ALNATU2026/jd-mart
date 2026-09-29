@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ChevronRight, LogOut, Shield, User, Store, Bike, Briefcase } from 'lucide-react';
+import { X, ChevronRight, LogOut, Shield, User, Store, Bike, Briefcase, ShoppingBag, Package, Heart, HelpCircle, Layers } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const Drawer: React.FC = () => {
@@ -10,32 +10,21 @@ export const Drawer: React.FC = () => {
     currentUser,
     userRole,
     logout,
-    cartCount,
     wishlist,
   } = useApp();
 
   if (!isDrawerOpen) return null;
 
-  const originalMenuItems = [
-    { title: 'Home', icon: '/assets/icons/home.gif', path: '/' },
-    { title: 'Account', icon: '/assets/icons/account.gif', path: '/account' },
-    { title: 'Categories', icon: '/assets/icons/categories.png', path: '/categories' },
-    { title: 'Deals & Discounts', icon: '/assets/icons/deals.gif', path: '/shop?filter=deals' },
-    { title: 'My Orders', icon: '/assets/icons/myorder.png', path: '/orders' },
-    { title: 'Wishlist', icon: '/assets/icons/wishlist.gif', path: '/wishlist', badge: wishlist.length },
-    { title: 'Messages', icon: '/assets/icons/message.png', path: '/dashboard?tab=messages' },
-    { title: 'Notifications', icon: '/assets/icons/notification.gif', path: '/dashboard?tab=notifications' },
-    { title: 'My Store', icon: '/assets/icons/mystore.gif', path: '/seller' },
-    { title: 'Help & Support', icon: '/assets/icons/help.gif', path: '/#help' },
-  ];
+  const isAdmin = currentUser?.role === 'Admin';
 
-  const rolePortals = [
-    { title: 'Buyer Hub', icon: <User className="w-4 h-4 text-blue-600" />, path: '/dashboard' },
-    { title: 'Seller Merchant Hub', icon: <Store className="w-4 h-4 text-emerald-600" />, path: '/seller' },
-    { title: 'Rider Dispatch Portal', icon: <Bike className="w-4 h-4 text-orange-600" />, path: '/rider' },
-    { title: 'Job Opportunities', icon: <Briefcase className="w-4 h-4 text-purple-600" />, path: '/jobs' },
-    { title: 'Employer Portal', icon: <Briefcase className="w-4 h-4 text-indigo-600" />, path: '/employer' },
-    { title: 'Admin Console', icon: <Shield className="w-4 h-4 text-red-600" />, path: '/admin' },
+  const customerNav = [
+    { title: 'Home', icon: '/assets/icons/home.gif', path: '/' },
+    { title: 'Shop Marketplace', icon: '/assets/icons/store.png', path: '/shop' },
+    { title: 'Browse Categories', icon: '/assets/icons/categories.png', path: '/categories' },
+    { title: 'Jobs & Gigs', icon: '/assets/icons/support.png', path: '/jobs' },
+    { title: 'Track My Orders', icon: '/assets/icons/myorder.png', path: '/orders' },
+    { title: 'Saved Wishlist', icon: '/assets/icons/wishlist.gif', path: '/wishlist', badge: wishlist.length },
+    { title: 'Help & Customer Support', icon: '/assets/icons/help.gif', path: '/#help' },
   ];
 
   return (
@@ -48,8 +37,12 @@ export const Drawer: React.FC = () => {
 
       {/* Drawer Panel */}
       <div className="relative w-full max-w-xs bg-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200">
-        {/* Drawer Header with Flutter App Color (#1E40AF) */}
-        <div className="bg-[#1E40AF] text-white p-5 relative overflow-hidden">
+        {/* Drawer Header */}
+        <div
+          className={`text-white p-5 relative overflow-hidden ${
+            isAdmin ? 'bg-slate-900' : 'bg-[#1E40AF]'
+          }`}
+        >
           <button
             onClick={() => setIsDrawerOpen(false)}
             className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -58,7 +51,7 @@ export const Drawer: React.FC = () => {
           </button>
 
           <div className="flex items-center gap-3 mt-2">
-            <div className="w-14 h-14 rounded-2xl bg-white p-1.5 shadow-md flex items-center justify-center shrink-0">
+            <div className="w-13 h-13 rounded-2xl bg-white p-1.5 shadow-md flex items-center justify-center shrink-0">
               <img
                 src="/assets/logos/applogo.png"
                 alt="JD Mart"
@@ -70,24 +63,32 @@ export const Drawer: React.FC = () => {
             </div>
             <div className="overflow-hidden">
               <h2 className="text-lg font-black tracking-tight leading-tight">JD MART</h2>
-              <p className="text-xs text-blue-200 truncate">
+              <p className="text-xs text-blue-100 truncate">
                 {currentUser ? currentUser.name : 'Welcome to JD Mart'}
               </p>
-              <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-white/15 text-[11px] font-semibold text-amber-300">
-                <span>{userRole} Mode</span>
-              </div>
+              {currentUser ? (
+                <div
+                  className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    isAdmin ? 'bg-red-500 text-white' : 'bg-white/20 text-white'
+                  }`}
+                >
+                  <span>{currentUser.role} Account</span>
+                </div>
+              ) : (
+                <p className="text-[11px] text-blue-200 mt-0.5">Freetown, Sierra Leone</p>
+              )}
             </div>
           </div>
         </div>
 
         {/* Scrollable Menu Items */}
         <div className="flex-1 overflow-y-auto py-3 px-2 divide-y divide-slate-100">
-          {/* Main Original App Menu Items */}
+          {/* Main Navigation */}
           <div className="space-y-1 pb-3">
             <p className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Navigation Menu
+              Explore
             </p>
-            {originalMenuItems.map((item) => (
+            {customerNav.map((item) => (
               <button
                 key={item.title}
                 onClick={() => {
@@ -97,7 +98,7 @@ export const Drawer: React.FC = () => {
                 className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-blue-50/70 text-slate-700 hover:text-[#1E40AF] transition-colors group text-sm font-semibold"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 flex items-center justify-center">
+                  <div className="w-6 h-6 flex items-center justify-center">
                     <img
                       src={item.icon}
                       alt={item.title}
@@ -121,30 +122,83 @@ export const Drawer: React.FC = () => {
             ))}
           </div>
 
-          {/* Role Portals */}
-          <div className="space-y-1 pt-3">
+          {/* Business & Opportunities Portals */}
+          <div className="space-y-1 pt-3 pb-3">
             <p className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Platform Portals
+              Earn & Partner
             </p>
-            {rolePortals.map((portal) => (
+            <button
+              onClick={() => {
+                setIsDrawerOpen(false);
+                navigate('/onboarding/seller');
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-colors text-xs font-semibold"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Store className="w-4 h-4" />
+                </div>
+                <span>Become a Seller</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300" />
+            </button>
+
+            <button
+              onClick={() => {
+                setIsDrawerOpen(false);
+                navigate('/onboarding/rider');
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-orange-50 text-slate-700 hover:text-orange-800 transition-colors text-xs font-semibold"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">
+                  <Bike className="w-4 h-4" />
+                </div>
+                <span>Become a Dispatch Rider</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300" />
+            </button>
+
+            <button
+              onClick={() => {
+                setIsDrawerOpen(false);
+                navigate('/employer');
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-indigo-50 text-slate-700 hover:text-indigo-800 transition-colors text-xs font-semibold"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <span>Hire Workers / Post Job</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300" />
+            </button>
+          </div>
+
+          {/* Admin Section (Only shown if currently authenticated as Admin) */}
+          {isAdmin && (
+            <div className="space-y-1 pt-3">
+              <p className="px-3 py-1 text-[11px] font-bold text-red-600 uppercase tracking-wider">
+                Admin Control Panel
+              </p>
               <button
-                key={portal.title}
                 onClick={() => {
                   setIsDrawerOpen(false);
-                  navigate(portal.path);
+                  navigate('/admin');
                 }}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 text-slate-700 transition-colors text-xs font-semibold"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-red-50 text-red-800 transition-colors text-xs font-bold"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                    {portal.icon}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center">
+                    <Shield className="w-4 h-4" />
                   </div>
-                  <span>{portal.title}</span>
+                  <span>Admin Console</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-300" />
+                <ChevronRight className="w-4 h-4 text-red-400" />
               </button>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}
@@ -161,17 +215,27 @@ export const Drawer: React.FC = () => {
               Sign Out
             </button>
           ) : (
-            <button
-              onClick={() => {
-                setIsDrawerOpen(false);
-                navigate('/login');
-              }}
-              className="w-full py-2 bg-[#1E40AF] text-white rounded-xl text-xs font-bold text-center"
-            >
-              Sign In to JD Mart
-            </button>
+            <div className="w-full flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  navigate('/login');
+                }}
+                className="flex-1 py-2 bg-[#1E40AF] text-white rounded-xl text-xs font-bold text-center"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  navigate('/register');
+                }}
+                className="flex-1 py-2 bg-slate-200 text-slate-800 rounded-xl text-xs font-bold text-center"
+              >
+                Register
+              </button>
+            </div>
           )}
-          <span className="text-[11px] text-slate-400">v2.4 Sierra Leone</span>
         </div>
       </div>
     </div>

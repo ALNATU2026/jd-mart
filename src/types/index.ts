@@ -1,4 +1,17 @@
-export type UserRole = 'Guest' | 'Buyer' | 'Seller' | 'Rider' | 'Job Seeker' | 'Employer' | 'Admin';
+export type UserRole =
+  | 'admin'
+  | 'buyer'
+  | 'seller'
+  | 'dispatcher'
+  | 'employer'
+  | 'employee'
+  | 'Admin'
+  | 'Buyer'
+  | 'Seller'
+  | 'Rider'
+  | 'Job Seeker'
+  | 'Employer'
+  | 'Guest';
 
 export interface User {
   id: string;
@@ -188,8 +201,43 @@ export interface JobApplication {
   phone: string;
   coverNote: string;
   resumeSummary: string;
+  resumeFileUrl?: string;
   status: 'Applied' | 'Reviewed' | 'Shortlisted' | 'Rejected';
   appliedDate: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  orderId: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  status: 'Pending' | 'Completed' | 'Failed' | 'Refunded';
+  paymentMethod: string;
+  transactionRef: string;
+  createdAt: string;
+}
+
+export interface AdminLog {
+  id: string;
+  adminId: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  details: string;
+  timestamp: string;
+}
+
+export interface UploadedFileItem {
+  id: string;
+  storagePath: string;
+  downloadURL: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploaderId: string;
+  uploadedAt: string;
+  category?: string;
 }
 
 export interface AppNotification {

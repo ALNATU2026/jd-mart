@@ -3,15 +3,36 @@ import { ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const JobApplyScreen: React.FC<{ jobId: string }> = ({ jobId }) => {
-  const { jobs, applyForJob, currentUser, navigate, showToast } = useApp();
+  const { jobs, applyForJob, uploadFile, currentUser, navigate, showToast } = useApp();
 
   const job = jobs.find((j) => j.id === jobId) || jobs[0];
 
-  const [fullName, setFullName] = useState(currentUser?.name || 'Ibrahim Koroma');
-  const [email, setEmail] = useState(currentUser?.email || 'seeker@jdmart.sl');
-  const [phone, setPhone] = useState(currentUser?.phone || '+232 88 112233');
+  const [fullName, setFullName] = useState(currentUser?.name || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
+  const [phone, setPhone] = useState(currentUser?.phone || '');
   const [coverNote, setCoverNote] = useState('');
   const [resumeSummary, setResumeSummary] = useState('');
+  const [resumeFileUrl, setResumeFileUrl] = useState('');
+  const [uploadingCV, setUploadingCV] = useState(false);
+  const [cvFileName, setCvFileName] = useState('');
+
+  const handleCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingCV(true);
+      const metadata = await uploadFile(file, 'employee-cv', job.id);
+      setResumeFileUrl(metadata.downloadURL);
+      setCvFileName(file.name);
+      showToast('CV document uploaded to Firebase Storage!');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'CV upload failed';
+      showToast(msg);
+    } finally {
+      setUploadingCV(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +47,7 @@ export const JobApplyScreen: React.FC<{ jobId: string }> = ({ jobId }) => {
       phone,
       coverNote,
       resumeSummary: resumeSummary || 'Verified JD Mart candidate profile & background',
+      resumeFileUrl,
     });
 
     navigate('/job-seeker/dashboard');
@@ -94,6 +116,27 @@ export const JobApplyScreen: React.FC<{ jobId: string }> = ({ jobId }) => {
               placeholder="List your years of experience, past employers, licenses or certifications..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">
+              Upload CV Document (PDF / DOCX to Firebase Storage)
+            </label>
+            <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <label className="px-3.5 py-1.5 bg-[#1E40AF] hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shrink-0">
+                <span>{uploadingCV ? 'Uploading to Storage...' : 'Attach CV File'}</span>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf"
+                  className="hidden"
+                  onChange={handleCvUpload}
+                  disabled={uploadingCV}
+                />
+              </label>
+              <span className="text-xs text-slate-500 truncate">
+                {cvFileName || (resumeFileUrl ? 'CV attached securely' : 'No document selected yet (Max 15MB)')}
+              </span>
+            </div>
           </div>
 
           <div>

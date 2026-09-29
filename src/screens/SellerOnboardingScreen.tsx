@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Store, UploadCloud, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const SellerOnboardingScreen: React.FC = () => {
-  const { switchRole, navigate, showToast } = useApp();
+  const { switchRole, uploadFile, currentUser, navigate, showToast } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [businessName, setBusinessName] = useState('');
   const [category, setCategory] = useState('Electronics');
@@ -11,6 +12,25 @@ export const SellerOnboardingScreen: React.FC = () => {
   const [address, setAddress] = useState('');
   const [momoNumber, setMomoNumber] = useState('');
   const [docUploaded, setDocUploaded] = useState(false);
+  const [docUrl, setDocUrl] = useState('');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  const handleDocChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingDoc(true);
+      const meta = await uploadFile(file, 'seller-document', currentUser?.id || 'seller_onboard');
+      setDocUrl(meta.downloadURL);
+      setDocUploaded(true);
+      showToast('Document uploaded to Firebase Cloud Storage!');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Upload failed';
+      showToast(msg);
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,21 +124,29 @@ export const SellerOnboardingScreen: React.FC = () => {
             />
           </div>
 
-          {/* ID / Document Upload Simulation */}
+          {/* Business Document Upload with Firebase Storage */}
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Business Registration / National ID</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,image/*"
+              onChange={handleDocChange}
+              className="hidden"
+            />
             <div
-              onClick={() => {
-                setDocUploaded(true);
-                showToast('Document attached successfully!');
-              }}
+              onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors"
             >
               <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-1" />
               <p className="text-xs font-semibold text-slate-700">
-                {docUploaded ? '✓ Business Registration Certificate Attached' : 'Click to attach certificate or ID'}
+                {uploadingDoc
+                  ? 'Uploading document to Firebase Storage...'
+                  : docUploaded
+                  ? '✓ Document Verified & Attached'
+                  : 'Click to upload certificate or ID to Firebase Storage'}
               </p>
-              <span className="text-[10px] text-slate-400">PDF, JPG or PNG up to 10MB</span>
+              <span className="text-[10px] text-slate-400">PDF, JPG, PNG or DOC up to 15MB</span>
             </div>
           </div>
 

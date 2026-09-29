@@ -4,13 +4,21 @@ import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 
 export const RegisterScreen: React.FC = () => {
-  const { login, navigate, showToast } = useApp();
+  const { registerWithEmail, loginWithGoogle, navigate, showToast } = useApp();
 
   const [accountType, setAccountType] = useState<UserRole>('Buyer');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignup = async () => {
+    setGoogleLoading(true);
+    await loginWithGoogle(accountType);
+    setGoogleLoading(false);
+  };
 
   const accountTypes: { role: UserRole; title: string; desc: string; icon: React.ReactNode }[] = [
     { role: 'Buyer', title: 'Buyer', desc: 'Shop & track orders', icon: <User className="w-4 h-4 text-blue-600" /> },
@@ -20,21 +28,21 @@ export const RegisterScreen: React.FC = () => {
     { role: 'Employer', title: 'Employer', desc: 'Hire skilled workers', icon: <Briefcase className="w-4 h-4 text-indigo-600" /> },
   ];
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !phone) {
-      showToast('Please fill out all registration fields');
+    if (!name.trim() || !email.trim() || !phone.trim() || !password) {
+      showToast('Please fill out all registration fields including password');
       return;
     }
 
-    login(email, accountType);
-    showToast(`Account created as ${accountType}!`);
+    if (password.length < 6) {
+      showToast('Password must be at least 6 characters long');
+      return;
+    }
 
-    if (accountType === 'Seller') navigate('/onboarding/seller');
-    else if (accountType === 'Rider') navigate('/onboarding/rider');
-    else if (accountType === 'Employer') navigate('/employer');
-    else if (accountType === 'Job Seeker') navigate('/job-seeker/dashboard');
-    else navigate('/dashboard');
+    setLoading(true);
+    await registerWithEmail(name.trim(), email.trim(), password, accountType, phone.trim());
+    setLoading(false);
   };
 
   return (
@@ -132,11 +140,64 @@ export const RegisterScreen: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-[#1E40AF] hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
+              disabled={loading || googleLoading}
+              className="w-full py-3.5 bg-[#1E40AF] hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl text-xs transition-colors shadow-xs flex items-center justify-center gap-2"
             >
-              Register as {accountType}
+              {loading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  <span>Creating Account in Firebase...</span>
+                </>
+              ) : (
+                <span>Register as {accountType}</span>
+              )}
             </button>
           </form>
+
+          <div className="relative my-3">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-[11px] uppercase">
+              <span className="bg-white px-2 text-slate-400 font-semibold tracking-wider">Or register with</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignup}
+            disabled={loading || googleLoading}
+            className="w-full py-2.5 px-4 border border-slate-200 hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2.5 shadow-2xs"
+          >
+            {googleLoading ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                <span>Connecting to Google...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.665-5.17 3.665-9.12z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.13C3.26 21.36 7.34 24 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.57H1.25C.45 8.16 0 9.98 0 12s.45 3.84 1.25 5.43l4.03-3.14z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.57l4.03 3.14c.95-2.83 3.6-4.96 6.72-4.96z"
+                  />
+                </svg>
+                <span>Continue with Google as {accountType}</span>
+              </>
+            )}
+          </button>
 
           <div className="pt-2 text-center text-xs text-slate-500">
             Already have an account?{' '}

@@ -6,18 +6,18 @@ import {
   Menu,
   User as UserIcon,
   ChevronDown,
-  Sparkles,
   Store,
   Bike,
   Briefcase,
   Shield,
   ShoppingBag,
   LogOut,
-  X,
   Package,
+  Phone,
+  HelpCircle,
+  Truck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { UserRole } from '../types';
 
 export const Header: React.FC = () => {
   const {
@@ -25,7 +25,6 @@ export const Header: React.FC = () => {
     navigate,
     currentUser,
     userRole,
-    switchRole,
     logout,
     cartCount,
     wishlist,
@@ -35,7 +34,6 @@ export const Header: React.FC = () => {
     notifications,
   } = useApp();
 
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -50,50 +48,45 @@ export const Header: React.FC = () => {
     }
   };
 
-  const roles: { role: UserRole; label: string; desc: string; icon: React.ReactNode; path: string }[] = [
-    { role: 'Buyer', label: 'Buyer', desc: 'Browse, buy products & track orders', icon: <ShoppingBag className="w-4 h-4 text-blue-600" />, path: '/dashboard' },
-    { role: 'Seller', label: 'Seller', desc: 'Manage store, products & orders', icon: <Store className="w-4 h-4 text-emerald-600" />, path: '/seller' },
-    { role: 'Rider', label: 'Dispatch Rider', desc: 'Accept packages & earn per delivery', icon: <Bike className="w-4 h-4 text-orange-600" />, path: '/rider' },
-    { role: 'Job Seeker', label: 'Job Seeker', desc: 'Find local jobs & track applications', icon: <Briefcase className="w-4 h-4 text-purple-600" />, path: '/job-seeker/dashboard' },
-    { role: 'Employer', label: 'Employer', desc: 'Post job vacancies & hire workers', icon: <Briefcase className="w-4 h-4 text-indigo-600" />, path: '/employer' },
-    { role: 'Admin', label: 'Administrator', desc: 'Platform moderation & control center', icon: <Shield className="w-4 h-4 text-red-600" />, path: '/admin' },
-  ];
+  const isAdmin = currentUser?.role === 'Admin';
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs">
-      {/* Top Banner / Role Persona Switcher bar */}
-      <div className="bg-[#0F172A] text-white text-xs px-4 py-1.5 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 overflow-x-auto py-0.5">
-          <span className="text-amber-400 font-bold flex items-center gap-1 shrink-0">
-            <Sparkles className="w-3.5 h-3.5" /> Demo Switcher:
+      {/* Top Utility Announcement Bar (No Demo Switcher) */}
+      <div className="bg-[#0F172A] text-white text-xs px-4 py-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3 text-slate-300">
+          <span className="flex items-center gap-1.5 font-medium text-slate-200">
+            <Truck className="w-3.5 h-3.5 text-[#F97316]" />
+            <span>Fast Nationwide Dispatch Across Sierra Leone</span>
           </span>
-          <span className="text-slate-300 hidden sm:inline">Active Persona:</span>
-          <div className="flex items-center gap-1.5">
-            {roles.map((r) => {
-              const isActive = userRole === r.role;
-              return (
-                <button
-                  key={r.role}
-                  onClick={() => switchRole(r.role)}
-                  className={`px-2 py-0.5 rounded-full font-medium transition-all text-[11px] flex items-center gap-1 ${
-                    isActive
-                      ? 'bg-[#1E40AF] text-white ring-1 ring-white/50 shadow-xs'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                  }`}
-                  title={r.desc}
-                >
-                  {r.label}
-                  {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
-                </button>
-              );
-            })}
-          </div>
+          <span className="hidden sm:inline text-slate-600">|</span>
+          <span className="hidden sm:inline text-slate-400">
+            Currency: <strong className="text-white">Le (SLL)</strong>
+          </span>
         </div>
 
-        <div className="flex items-center gap-3 text-slate-300">
-          <span className="hidden md:inline text-slate-400">Currency: <strong className="text-white">Le (SLL)</strong></span>
-          <span className="hidden md:inline">|</span>
-          <span className="hidden md:inline text-slate-400">Helpline: <strong className="text-white">+232 76 123456</strong></span>
+        <div className="flex items-center gap-4 text-slate-300">
+          <button
+            onClick={() => navigate('/orders')}
+            className="hidden md:flex items-center gap-1 hover:text-white transition-colors"
+          >
+            <Package className="w-3.5 h-3.5 text-blue-400" />
+            <span>Track Order</span>
+          </button>
+          <span className="hidden md:inline text-slate-600">|</span>
+          <div className="flex items-center gap-1">
+            <Phone className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-slate-400 hidden sm:inline">Helpline:</span>
+            <strong className="text-white">+232 76 123456</strong>
+          </div>
+          <span className="hidden sm:inline text-slate-600">|</span>
+          <button
+            onClick={() => navigate('/#help')}
+            className="hidden sm:flex items-center gap-1 hover:text-white transition-colors"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+            <span>Help</span>
+          </button>
         </div>
       </div>
 
@@ -119,7 +112,6 @@ export const Header: React.FC = () => {
                 alt="JD Mart"
                 className="h-9 w-auto object-contain"
                 onError={(e) => {
-                  // fallback if image path fails
                   (e.target as HTMLImageElement).src = '/assets/logos/jdmart_logo.png';
                 }}
               />
@@ -144,7 +136,7 @@ export const Header: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products, brands, stores, jobs..."
+                placeholder="Search products, verified stores, dispatch riders, jobs..."
                 className="w-full pl-10 pr-20 py-2.5 bg-slate-100/90 border border-slate-200 rounded-full text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#1E40AF] focus:bg-white transition-all"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -157,7 +149,7 @@ export const Header: React.FC = () => {
             </div>
           </form>
 
-          {/* Right Action Icons & Profile */}
+          {/* Right Action Icons & User Account */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Mobile Search Button */}
             <button
@@ -196,99 +188,277 @@ export const Header: React.FC = () => {
               )}
             </button>
 
-            {/* User Profile / Account Dropdown */}
+            {/* User Account / Profile Dropdown */}
             <div className="relative">
               {currentUser ? (
-                <button
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 p-1.5 rounded-full hover:bg-slate-100 transition-colors border border-slate-200"
-                >
-                  <img
-                    src={currentUser.avatar || '/assets/icons/account.gif'}
-                    alt={currentUser.name}
-                    className="w-7 h-7 rounded-full object-cover bg-blue-100"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/assets/icons/account.gif';
-                    }}
-                  />
-                  <span className="text-xs font-semibold text-slate-700 hidden lg:inline max-w-[90px] truncate">
-                    {currentUser.name}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden lg:inline" />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                    className={`flex items-center gap-2 p-1.5 pl-2.5 rounded-full transition-all border ${
+                      isAdmin
+                        ? 'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
+                  >
+                    {isAdmin ? (
+                      <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xs">
+                        <Shield className="w-3.5 h-3.5" />
+                      </div>
+                    ) : (
+                      <img
+                        src={currentUser.avatar || '/assets/icons/account.gif'}
+                        alt={currentUser.name}
+                        className="w-6 h-6 rounded-full object-cover bg-blue-100"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/assets/icons/account.gif';
+                        }}
+                      />
+                    )}
+                    <span className="text-xs font-bold hidden sm:inline max-w-[100px] truncate">
+                      {isAdmin ? 'Admin' : currentUser.name}
+                    </span>
+                    <span
+                      className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full hidden md:inline ${
+                        isAdmin
+                          ? 'bg-red-600 text-white'
+                          : 'bg-blue-100 text-[#1E40AF]'
+                      }`}
+                    >
+                      {currentUser.role}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {userDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                      <div className="px-4 py-2.5 border-b border-slate-100">
+                        <p className="text-[11px] text-slate-400">Signed in as</p>
+                        <p className="text-sm font-bold text-slate-800 truncate">
+                          {currentUser.name}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+                        <span
+                          className={`inline-block mt-1 px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                            isAdmin
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-blue-50 text-[#1E40AF]'
+                          }`}
+                        >
+                          Role: {currentUser.role}
+                        </span>
+                      </div>
+
+                      {/* Admin Specific Links */}
+                      {isAdmin ? (
+                        <div className="py-1">
+                          <p className="px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Administrator Controls
+                          </p>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/admin');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-red-50 hover:text-red-700 flex items-center gap-2.5 font-semibold"
+                          >
+                            <Shield className="w-4 h-4 text-red-600" />
+                            Admin Console
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/admin/users');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <UserIcon className="w-4 h-4 text-slate-400" />
+                            Manage Users
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/admin/sellers');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <Store className="w-4 h-4 text-slate-400" />
+                            Manage Sellers
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/admin/riders');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <Bike className="w-4 h-4 text-slate-400" />
+                            Manage Riders
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/admin/orders');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <Package className="w-4 h-4 text-slate-400" />
+                            Platform Orders
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/admin/jobs');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <Briefcase className="w-4 h-4 text-slate-400" />
+                            Job Moderation
+                          </button>
+                        </div>
+                      ) : (
+                        /* Normal User Links (Role-Specific) */
+                        <div className="py-1">
+                          {currentUser.role === 'Seller' && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setUserDropdownOpen(false);
+                                  navigate('/seller');
+                                }}
+                                className="w-full text-left px-4 py-2 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2.5 font-bold"
+                              >
+                                <Store className="w-4 h-4 text-emerald-600" />
+                                Seller Hub
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setUserDropdownOpen(false);
+                                  navigate('/seller/products');
+                                }}
+                                className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                              >
+                                <Package className="w-4 h-4 text-slate-400" />
+                                My Products
+                              </button>
+                            </>
+                          )}
+
+                          {currentUser.role === 'Rider' && (
+                            <button
+                              onClick={() => {
+                                setUserDropdownOpen(false);
+                                navigate('/rider');
+                              }}
+                              className="w-full text-left px-4 py-2 text-xs text-orange-700 hover:bg-orange-50 flex items-center gap-2.5 font-bold"
+                            >
+                              <Bike className="w-4 h-4 text-orange-600" />
+                              Rider Dispatch Hub
+                            </button>
+                          )}
+
+                          {currentUser.role === 'Employer' && (
+                            <button
+                              onClick={() => {
+                                setUserDropdownOpen(false);
+                                navigate('/employer');
+                              }}
+                              className="w-full text-left px-4 py-2 text-xs text-indigo-700 hover:bg-indigo-50 flex items-center gap-2.5 font-bold"
+                            >
+                              <Briefcase className="w-4 h-4 text-indigo-600" />
+                              Employer Hub
+                            </button>
+                          )}
+
+                          {currentUser.role === 'Job Seeker' && (
+                            <button
+                              onClick={() => {
+                                setUserDropdownOpen(false);
+                                navigate('/job-seeker/dashboard');
+                              }}
+                              className="w-full text-left px-4 py-2 text-xs text-purple-700 hover:bg-purple-50 flex items-center gap-2.5 font-bold"
+                            >
+                              <Briefcase className="w-4 h-4 text-purple-600" />
+                              Job Applications
+                            </button>
+                          )}
+
+                          {currentUser.role === 'Buyer' && (
+                            <button
+                              onClick={() => {
+                                setUserDropdownOpen(false);
+                                navigate('/dashboard');
+                              }}
+                              className="w-full text-left px-4 py-2 text-xs text-blue-700 hover:bg-blue-50 flex items-center gap-2.5 font-bold"
+                            >
+                              <ShoppingBag className="w-4 h-4 text-blue-600" />
+                              Buyer Dashboard
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/account');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <UserIcon className="w-4 h-4 text-slate-400" />
+                            Account & Profile
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/orders');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <Package className="w-4 h-4 text-slate-400" />
+                            My Orders
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/wishlist');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+                          >
+                            <ShoppingBag className="w-4 h-4 text-slate-400" />
+                            Wishlist ({wishlist.length})
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="border-t border-slate-100 pt-1">
+                        <button
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            logout();
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5 font-medium"
+                        >
+                          <LogOut className="w-4 h-4 text-red-500" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
+                /* When Logged Out: Clean Sign In & Register */
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => navigate('/login')}
-                    className="px-3 py-1.5 text-xs font-semibold text-[#1E40AF] hover:bg-blue-50 rounded-lg transition-colors"
+                    className="px-3.5 py-1.5 text-xs font-bold text-[#1E40AF] hover:bg-blue-50 rounded-xl transition-colors"
                   >
-                    Login
+                    Sign In
                   </button>
                   <button
                     onClick={() => navigate('/register')}
-                    className="px-3 py-1.5 text-xs font-semibold bg-[#1E40AF] text-white rounded-lg hover:bg-blue-700 transition-colors shadow-xs"
+                    className="px-3.5 py-1.5 text-xs font-bold bg-[#1E40AF] text-white rounded-xl hover:bg-blue-700 transition-colors shadow-xs"
                   >
                     Register
                   </button>
-                </div>
-              )}
-
-              {/* User Dropdown Menu */}
-              {userDropdownOpen && currentUser && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-4 py-2 border-b border-slate-100">
-                    <p className="text-xs text-slate-400">Signed in as</p>
-                    <p className="text-sm font-bold text-slate-800 truncate">{currentUser.name}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-blue-50 text-[#1E40AF] text-[10px] font-bold rounded-full">
-                      Role: {userRole}
-                    </span>
-                  </div>
-
-                  <div className="py-1">
-                    <button
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        navigate('/account');
-                      }}
-                      className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
-                    >
-                      <UserIcon className="w-4 h-4 text-slate-400" />
-                      My Account & Profile
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        navigate('/orders');
-                      }}
-                      className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
-                    >
-                      <Package className="w-4 h-4 text-slate-400" />
-                      My Orders
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        navigate('/wishlist');
-                      }}
-                      className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
-                    >
-                      <ShoppingBag className="w-4 h-4 text-slate-400" />
-                      Saved Wishlist ({wishlist.length})
-                    </button>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-1">
-                    <button
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        logout();
-                      }}
-                      className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5 font-medium"
-                    >
-                      <LogOut className="w-4 h-4 text-red-500" />
-                      Sign Out
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -296,9 +466,9 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Sub-bar */}
+      {/* Main Navigation Sub-bar (Customer & Merchant Facing - NO Admin button here!) */}
       <nav className="bg-slate-50/80 border-t border-slate-200/70 overflow-x-auto text-xs font-semibold text-slate-700 scrollbar-none">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-1 sm:gap-4 py-2 whitespace-nowrap">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-1 sm:gap-3 py-2 whitespace-nowrap">
           <button
             onClick={() => navigate('/')}
             className={`px-3 py-1.5 rounded-lg transition-colors ${
@@ -334,7 +504,7 @@ export const Header: React.FC = () => {
 
           <span className="text-slate-300">|</span>
 
-          {/* Quick links to merchant / rider / jobs */}
+          {/* Business & Service Onboarding Links */}
           <button
             onClick={() => navigate('/onboarding/seller')}
             className={`px-3 py-1.5 rounded-lg transition-colors text-emerald-700 flex items-center gap-1.5 ${
@@ -363,16 +533,6 @@ export const Header: React.FC = () => {
           >
             <Briefcase className="w-3.5 h-3.5" />
             Hire Workers
-          </button>
-
-          <button
-            onClick={() => navigate('/admin')}
-            className={`px-3 py-1.5 rounded-lg transition-colors text-red-700 flex items-center gap-1.5 ${
-              currentPath.startsWith('/admin') ? 'bg-red-100 text-red-900 font-bold' : 'hover:bg-red-50'
-            }`}
-          >
-            <Shield className="w-3.5 h-3.5" />
-            Admin Portal
           </button>
         </div>
       </nav>

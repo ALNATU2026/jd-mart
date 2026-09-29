@@ -1,0 +1,266 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile in JD Mart with role-based access control.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "buyer", "seller", "dispatcher", "employer", "employee"]
+        },
+        "avatar": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "suspended", "pending"] },
+        "verified": { "type": "boolean" },
+        "storeId": { "type": "string" },
+        "vehicleType": { "type": "string" },
+        "licensePlate": { "type": "string" },
+        "walletBalance": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role", "status", "verified"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Marketplace product item listed by verified sellers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "number" },
+        "oldPrice": { "type": "number" },
+        "discount": { "type": "string" },
+        "image": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "stock": { "type": "number" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "sellerLocation": { "type": "string" },
+        "sellerRating": { "type": "number" },
+        "condition": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "featured": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "inactive", "pending"] },
+        "deliveryAvailable": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "price", "category", "sellerId", "sellerName", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Buyer purchase order encompassing products, payments, and delivery.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "buyerPhone": { "type": "string" },
+        "buyerAddress": { "type": "string" },
+        "buyerCity": { "type": "string" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "serviceFee": { "type": "number" },
+        "total": { "type": "number" },
+        "deliveryMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "orderStatus": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "riderId": { "type": "string" },
+        "riderName": { "type": "string" },
+        "riderPhone": { "type": "string" },
+        "timeline": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "estimatedDelivery": { "type": "string" },
+        "rating": { "type": "number" },
+        "issueReported": { "type": "string" }
+      },
+      "required": ["id", "buyerId", "total", "orderStatus", "paymentStatus", "sellerId"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Financial payment record for orders in escrow or settlement.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "transactionRef": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "orderId", "userId", "amount", "status", "paymentMethod"]
+    },
+    "Delivery": {
+      "title": "Delivery",
+      "description": "Courier dispatch dispatch execution record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "riderId": { "type": "string" },
+        "pickupLocation": { "type": "string" },
+        "deliveryLocation": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "sellerPhone": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "packageDetails": { "type": "string" },
+        "deliveryFee": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "proofOfDeliveryPhoto": { "type": "string" },
+        "proofNotes": { "type": "string" }
+      },
+      "required": ["id", "orderId", "status", "deliveryFee"]
+    },
+    "Job": {
+      "title": "Job",
+      "description": "Employment opportunity posted by verified employers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employerId": { "type": "string" },
+        "employerName": { "type": "string" },
+        "employerLogo": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "type": { "type": "string" },
+        "location": { "type": "string" },
+        "salary": { "type": "string" },
+        "description": { "type": "string" },
+        "requirements": { "type": "array" },
+        "responsibilities": { "type": "array" },
+        "status": { "type": "string" },
+        "applicantCount": { "type": "number" },
+        "postedDate": { "type": "string" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["id", "employerId", "employerName", "title", "status"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Job application submitted by job seekers / employees.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "jobId": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "companyName": { "type": "string" },
+        "applicantId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "coverNote": { "type": "string" },
+        "resumeSummary": { "type": "string" },
+        "resumeFileUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "appliedDate": { "type": "string" }
+      },
+      "required": ["id", "jobId", "applicantId", "fullName", "email", "status"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Communication message between buyers, sellers, couriers, or admins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" },
+        "orderId": { "type": "string" }
+      },
+      "required": ["id", "senderId", "receiverId", "content", "timestamp"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Real-time user alerts for orders, deliveries, and system messages.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "time": { "type": "string" },
+        "read": { "type": "boolean" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "message", "read", "type"]
+    },
+    "AdminLog": {
+      "title": "AdminLog",
+      "description": "Audit trails for moderation and administrative interventions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "adminId": { "type": "string" },
+        "action": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "adminId", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile with role claims and contact information."
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Marketplace products catalog."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Customer purchase orders."
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment records."
+    },
+    "/deliveries/{deliveryId}": {
+      "schema": { "$ref": "#/entities/Delivery" },
+      "description": "Courier deliveries queue."
+    },
+    "/jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/Job" },
+      "description": "Job marketplace listings."
+    },
+    "/applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/Application" },
+      "description": "Job applications."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Direct and order messages."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User notifications."
+    },
+    "/adminLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AdminLog" },
+      "description": "Audit trail logs for administrative actions."
+    }
+  }
+}

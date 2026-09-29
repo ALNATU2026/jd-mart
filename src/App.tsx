@@ -6,6 +6,7 @@ import { Drawer } from './components/Drawer';
 import { CartDrawer } from './components/CartDrawer';
 import { NotificationsModal } from './components/NotificationsModal';
 import { Toast } from './components/Toast';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Screens
 import { HomeScreen } from './screens/HomeScreen';
@@ -82,61 +83,185 @@ const RouterView: React.FC = () => {
 
     // 2. CART & CHECKOUT
     if (currentPath === '/cart') return <CartScreen />;
-    if (currentPath === '/checkout') return <CheckoutScreen />;
+    if (currentPath === '/checkout') {
+      return (
+        <ProtectedRoute requiredTitle="Checkout">
+          <CheckoutScreen />
+        </ProtectedRoute>
+      );
+    }
     if (currentPath.startsWith('/order-success/')) {
       const id = currentPath.replace('/order-success/', '').split('?')[0];
       return <OrderSuccessScreen orderId={id} />;
     }
 
     // 3. BUYER PAGES
-    if (currentPath === '/dashboard') return <BuyerDashboardScreen />;
-    if (currentPath === '/orders') return <OrdersScreen />;
+    if (currentPath === '/dashboard') {
+      return (
+        <ProtectedRoute requiredTitle="My Account Dashboard">
+          <BuyerDashboardScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/orders') {
+      return (
+        <ProtectedRoute requiredTitle="Orders">
+          <OrdersScreen />
+        </ProtectedRoute>
+      );
+    }
     if (currentPath.startsWith('/orders/')) {
       const id = currentPath.replace('/orders/', '').split('?')[0];
-      return <OrderDetailScreen orderId={id} />;
+      return (
+        <ProtectedRoute requiredTitle="Order Details">
+          <OrderDetailScreen orderId={id} />
+        </ProtectedRoute>
+      );
     }
-    if (currentPath === '/wishlist') return <WishlistScreen />;
-    if (currentPath === '/account') return <AccountScreen />;
+    if (currentPath === '/wishlist') {
+      return (
+        <ProtectedRoute requiredTitle="Wishlist">
+          <WishlistScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/account') {
+      return (
+        <ProtectedRoute requiredTitle="Profile Settings">
+          <AccountScreen />
+        </ProtectedRoute>
+      );
+    }
 
     // 4. SELLER PAGES
-    if (currentPath === '/seller') return <SellerDashboardScreen />;
-    if (currentPath === '/seller/store') return <SellerStoreScreen />;
+    if (currentPath === '/seller') {
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Seller Merchant Dashboard">
+          <SellerDashboardScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/seller/store') {
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Store Settings">
+          <SellerStoreScreen />
+        </ProtectedRoute>
+      );
+    }
     if (currentPath.startsWith('/store/')) {
       const slug = currentPath.replace('/store/', '').split('?')[0];
       return <PublicStoreScreen slug={slug} />;
     }
-    if (currentPath === '/seller/products') return <SellerProductsScreen />;
-    if (currentPath === '/seller/products/new') return <AddEditProductScreen />;
+    if (currentPath === '/seller/products') {
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Product Management">
+          <SellerProductsScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/seller/products/new') {
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Add New Product">
+          <AddEditProductScreen />
+        </ProtectedRoute>
+      );
+    }
     if (currentPath.startsWith('/seller/products/') && currentPath.endsWith('/edit')) {
       const id = currentPath.replace('/seller/products/', '').replace('/edit', '');
-      return <AddEditProductScreen productId={id} />;
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Edit Product">
+          <AddEditProductScreen productId={id} />
+        </ProtectedRoute>
+      );
     }
-    if (currentPath === '/seller/orders') return <SellerOrdersScreen />;
-    if (currentPath === '/seller/earnings') return <SellerEarningsScreen />;
-    if (currentPath === '/seller/dispatch') return <SellerDispatchScreen />;
+    if (currentPath === '/seller/orders') {
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Store Orders">
+          <SellerOrdersScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/seller/earnings') {
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Store Earnings">
+          <SellerEarningsScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/seller/dispatch') {
+      return (
+        <ProtectedRoute allowedRoles={['seller', 'admin']} requiredTitle="Courier Dispatch Management">
+          <SellerDispatchScreen />
+        </ProtectedRoute>
+      );
+    }
 
     // 5. RIDER / DELIVERY PAGES
-    if (currentPath === '/rider') return <RiderDashboardScreen />;
-    if (currentPath === '/rider/deliveries') return <RiderDeliveriesScreen />;
+    if (currentPath === '/rider') {
+      return (
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Courier Rider Dispatch Dashboard">
+          <RiderDashboardScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/rider/deliveries') {
+      return (
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Courier Delivery Queue">
+          <RiderDeliveriesScreen />
+        </ProtectedRoute>
+      );
+    }
     if (currentPath.startsWith('/rider/deliveries/')) {
       const id = currentPath.replace('/rider/deliveries/', '').split('?')[0];
-      return <RiderDeliveryDetailScreen deliveryId={id} />;
+      return (
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Delivery Trip Details">
+          <RiderDeliveryDetailScreen deliveryId={id} />
+        </ProtectedRoute>
+      );
     }
-    if (currentPath === '/rider/earnings') return <RiderEarningsScreen />;
+    if (currentPath === '/rider/earnings') {
+      return (
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Courier Earnings">
+          <RiderEarningsScreen />
+        </ProtectedRoute>
+      );
+    }
 
     // 6. JOB MARKETPLACE PAGES
     if (currentPath === '/jobs') return <JobsScreen />;
     if (currentPath.startsWith('/jobs/apply/')) {
       const id = currentPath.replace('/jobs/apply/', '').split('?')[0];
-      return <JobApplyScreen jobId={id} />;
+      return (
+        <ProtectedRoute requiredTitle="Job Application">
+          <JobApplyScreen jobId={id} />
+        </ProtectedRoute>
+      );
     }
     if (currentPath.startsWith('/jobs/')) {
       const id = currentPath.replace('/jobs/', '').split('?')[0];
       return <JobDetailScreen jobId={id} />;
     }
-    if (currentPath === '/employer') return <EmployerDashboardScreen />;
-    if (currentPath === '/employer/jobs/new') return <PostJobScreen />;
-    if (currentPath === '/job-seeker/dashboard') return <JobSeekerDashboardScreen />;
+    if (currentPath === '/employer') {
+      return (
+        <ProtectedRoute allowedRoles={['employer', 'admin']} requiredTitle="Employer Hiring Portal">
+          <EmployerDashboardScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/employer/jobs/new') {
+      return (
+        <ProtectedRoute allowedRoles={['employer', 'admin']} requiredTitle="Post Vacancy">
+          <PostJobScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/job-seeker/dashboard') {
+      return (
+        <ProtectedRoute allowedRoles={['employee', 'job seeker', 'buyer', 'admin']} requiredTitle="Job Seeker Dashboard">
+          <JobSeekerDashboardScreen />
+        </ProtectedRoute>
+      );
+    }
 
     // 7. AUTHENTICATION & ONBOARDING
     if (currentPath === '/login') return <LoginScreen />;
@@ -146,12 +271,48 @@ const RouterView: React.FC = () => {
     if (currentPath === '/onboarding/rider') return <RiderOnboardingScreen />;
 
     // 8. ADMIN PAGES
-    if (currentPath === '/admin') return <AdminDashboardScreen />;
-    if (currentPath === '/admin/users') return <AdminUsersScreen />;
-    if (currentPath === '/admin/sellers') return <AdminSellersScreen />;
-    if (currentPath === '/admin/riders') return <AdminRidersScreen />;
-    if (currentPath === '/admin/orders') return <AdminOrdersScreen />;
-    if (currentPath === '/admin/jobs') return <AdminJobsScreen />;
+    if (currentPath === '/admin') {
+      return (
+        <ProtectedRoute allowedRoles={['admin']} requiredTitle="JD Mart Administrator Console">
+          <AdminDashboardScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/admin/users') {
+      return (
+        <ProtectedRoute allowedRoles={['admin']} requiredTitle="Admin Users Management">
+          <AdminUsersScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/admin/sellers') {
+      return (
+        <ProtectedRoute allowedRoles={['admin']} requiredTitle="Admin Seller Approvals">
+          <AdminSellersScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/admin/riders') {
+      return (
+        <ProtectedRoute allowedRoles={['admin']} requiredTitle="Admin Rider Fleet">
+          <AdminRidersScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/admin/orders') {
+      return (
+        <ProtectedRoute allowedRoles={['admin']} requiredTitle="Admin Orders & Disputes">
+          <AdminOrdersScreen />
+        </ProtectedRoute>
+      );
+    }
+    if (currentPath === '/admin/jobs') {
+      return (
+        <ProtectedRoute allowedRoles={['admin']} requiredTitle="Admin Job Moderation">
+          <AdminJobsScreen />
+        </ProtectedRoute>
+      );
+    }
 
     // Fallback to Home
     return <HomeScreen />;

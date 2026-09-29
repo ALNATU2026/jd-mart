@@ -34,7 +34,7 @@ export const CheckoutScreen: React.FC = () => {
   const serviceFee = 5;
   const grandTotal = cartTotal + deliveryFee + serviceFee;
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || !phone || !address) {
       showToast('Please complete all delivery information fields');
@@ -51,7 +51,7 @@ export const CheckoutScreen: React.FC = () => {
       sellerName: item.product.sellerName,
     }));
 
-    const newOrder = createOrder({
+    const newOrder = await createOrder({
       buyerName: fullName,
       buyerPhone: phone,
       buyerAddress: address,

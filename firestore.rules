@@ -1,0 +1,159 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email in ['dalabapays@gmail.com', 'admin@jdmart.sl', 'admin@jdmart.com'] ||
+         request.auth.token.role == 'admin' ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          getUserData().role == 'admin'));
+    }
+
+    function isSeller() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'seller' ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          getUserData().role == 'seller'));
+    }
+
+    function isDispatcher() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'dispatcher' ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          getUserData().role == 'dispatcher'));
+    }
+
+    function isEmployer() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'employer' ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          getUserData().role == 'employer'));
+    }
+
+    // Test connection document
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isUser(userId) &&
+        (!('role' in request.resource.data) || request.resource.data.role in ['buyer', 'seller', 'dispatcher', 'employer', 'employee'] || isAdmin());
+      allow update: if (isUser(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        (request.resource.data.sellerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() &&
+        (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.buyerId == request.auth.uid ||
+         resource.data.sellerId == request.auth.uid ||
+         resource.data.riderId == request.auth.uid ||
+         isAdmin());
+      allow create: if isAuthenticated() &&
+        (request.resource.data.buyerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.buyerId == request.auth.uid ||
+         resource.data.sellerId == request.auth.uid ||
+         resource.data.riderId == request.auth.uid ||
+         isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Payments Collection
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Deliveries Collection
+    match /deliveries/{deliveryId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (resource.data.riderId == request.auth.uid ||
+         resource.data.riderId == null ||
+         isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Jobs Collection
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        (request.resource.data.employerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.employerId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() &&
+        (resource.data.employerId == request.auth.uid || isAdmin());
+    }
+
+    // Applications Collection
+    match /applications/{applicationId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.applicantId == request.auth.uid ||
+         isAdmin());
+      allow create: if isAuthenticated() &&
+        (request.resource.data.applicantId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.applicantId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Messages Collection
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.senderId == request.auth.uid ||
+         resource.data.receiverId == request.auth.uid ||
+         isAdmin());
+      allow create: if isAuthenticated() &&
+        (request.resource.data.senderId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // AdminLogs Collection
+    match /adminLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

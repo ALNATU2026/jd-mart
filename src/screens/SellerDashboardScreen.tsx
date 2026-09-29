@@ -19,11 +19,13 @@ export const SellerDashboardScreen: React.FC = () => {
   const { products, orders, navigate, currentUser } = useApp();
 
   const sellerProducts = products.filter(
-    (p) => p.sellerId === currentUser?.id || p.sellerId === 'user-seller-1'
+    (p) => !currentUser || p.sellerId === currentUser.id || currentUser.role === 'Seller'
   );
-  const sellerOrders = orders; // Show marketplace orders for seller demo
+  const sellerOrders = orders.filter(
+    (o) => !currentUser || o.sellerId === currentUser.id || currentUser.role === 'Seller'
+  );
 
-  const totalSales = 12450;
+  const totalSales = sellerOrders.reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = sellerOrders.filter(
     (o) => o.orderStatus === 'Pending' || o.orderStatus === 'Confirmed' || o.orderStatus === 'Processing'
   ).length;

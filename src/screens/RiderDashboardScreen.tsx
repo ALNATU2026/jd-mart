@@ -22,12 +22,15 @@ export const RiderDashboardScreen: React.FC = () => {
     updateDeliveryStatus,
     navigate,
     showToast,
+    currentUser,
   } = useApp();
 
   const availableRequests = riderDeliveries.filter((d) => d.status === 'Available');
   const activeDelivery = riderDeliveries.find((d) => d.status === 'Accepted' || d.status === 'In Transit');
   const completedToday = riderDeliveries.filter((d) => d.status === 'Delivered').length;
-  const earningsToday = 145; // Le
+  const earningsToday = riderDeliveries
+    .filter((d) => d.status === 'Delivered')
+    .reduce((sum, d) => sum + d.deliveryFee, 0);
 
   return (
     <div className="min-h-screen bg-[#F5F7FB] py-8 px-4 sm:px-6 lg:px-8">
@@ -42,7 +45,7 @@ export const RiderDashboardScreen: React.FC = () => {
               Dispatch Rider Command
             </h1>
             <p className="text-xs text-orange-100">
-              Courier: <strong className="text-white">Samuel Bangura</strong> • Bike: <strong className="text-white">SL-AB 2049</strong>
+              Courier: <strong className="text-white">{currentUser?.name || 'Authorized Courier'}</strong> • Vehicle: <strong className="text-white">{currentUser?.licensePlate || currentUser?.vehicleType || 'Motorbike'}</strong>
             </p>
           </div>
 

@@ -1,15 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Bike, UploadCloud, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const RiderOnboardingScreen: React.FC = () => {
-  const { switchRole, navigate, showToast } = useApp();
+  const { switchRole, uploadFile, currentUser, navigate, showToast } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [vehicleType, setVehicleType] = useState<'motorbike' | 'bicycle' | 'car' | 'van'>('motorbike');
   const [licensePlate, setLicensePlate] = useState('');
   const [licenseDoc, setLicenseDoc] = useState(false);
+  const [licenseUrl, setLicenseUrl] = useState('');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  const handleLicenseUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingDoc(true);
+      const meta = await uploadFile(file, 'seller-document', currentUser?.id || 'rider_onboard');
+      setLicenseUrl(meta.downloadURL);
+      setLicenseDoc(true);
+      showToast('Driver license document uploaded to Firebase Storage!');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Upload failed';
+      showToast(msg);
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,21 +111,29 @@ export const RiderOnboardingScreen: React.FC = () => {
             />
           </div>
 
-          {/* Rider License / ID upload simulation */}
+          {/* Rider License / ID upload with Firebase Storage */}
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Sierra Leone Rider Driver's License or National ID</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,image/*"
+              onChange={handleLicenseUpload}
+              className="hidden"
+            />
             <div
-              onClick={() => {
-                setLicenseDoc(true);
-                showToast('Driver license document attached!');
-              }}
+              onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors"
             >
               <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-1" />
               <p className="text-xs font-semibold text-slate-700">
-                {licenseDoc ? '✓ Class A Driver License Attached' : 'Click to attach valid driver license or national card'}
+                {uploadingDoc
+                  ? 'Uploading license to Firebase Storage...'
+                  : licenseDoc
+                  ? '✓ Class A Driver License Attached'
+                  : 'Click to attach valid driver license or national card'}
               </p>
-              <span className="text-[10px] text-slate-400">Clear camera photo or scan</span>
+              <span className="text-[10px] text-slate-400">Clear camera photo, PDF or scan up to 10MB</span>
             </div>
           </div>
 
