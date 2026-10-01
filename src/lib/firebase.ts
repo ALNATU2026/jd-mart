@@ -41,14 +41,60 @@ import firebaseConfigJson from '../../firebase-applet-config.json';
 
 const env = (import.meta as unknown as { env?: Record<string, string> }).env || {};
 
-export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain,
-  projectId: env.VITE_FIREBASE_PROJECT_ID || firebaseConfigJson.projectId,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigJson.messagingSenderId,
-  appId: env.VITE_FIREBASE_APP_ID || firebaseConfigJson.appId,
-};
+interface FirebaseAppletConfig {
+  projectId: string;
+  appId: string;
+  apiKey: string;
+  authDomain: string;
+  firestoreDatabaseId?: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  measurementId?: string;
+  oAuthClientId?: string;
+  recaptchaSiteKey?: string;
+}
+
+const cfgJson: FirebaseAppletConfig = firebaseConfigJson as FirebaseAppletConfig;
+
+function resolveConfig() {
+  let apiKey = cfgJson.apiKey || '';
+  let authDomain = cfgJson.authDomain || '';
+
+  const envApiKey = typeof env.VITE_FIREBASE_API_KEY === 'string' ? env.VITE_FIREBASE_API_KEY.trim() : '';
+  const envAuthDomain = typeof env.VITE_FIREBASE_AUTH_DOMAIN === 'string' ? env.VITE_FIREBASE_AUTH_DOMAIN.trim() : '';
+
+  // Detect and correct swapped or misconfigured environment variables
+  if (envApiKey.startsWith('AIza')) {
+    apiKey = envApiKey;
+  } else if (envAuthDomain.startsWith('AIza')) {
+    apiKey = envAuthDomain;
+  }
+
+  if (envAuthDomain.includes('.firebaseapp.com') || envAuthDomain.includes('.web.app')) {
+    authDomain = envAuthDomain;
+  } else if (envApiKey.includes('.firebaseapp.com') || envApiKey.includes('.web.app')) {
+    authDomain = envApiKey;
+  }
+
+  // Ensure apiKey and authDomain always fall back to provisioned credentials
+  if (!apiKey || !apiKey.startsWith('AIza')) {
+    apiKey = cfgJson.apiKey || 'AIzaSyDg5ZwU7PWC3wBaEfSCqDY-kukJqph6il0';
+  }
+  if (!authDomain || !authDomain.includes('.')) {
+    authDomain = cfgJson.authDomain || 'gen-lang-client-0741191357.firebaseapp.com';
+  }
+
+  return {
+    apiKey,
+    authDomain,
+    projectId: env.VITE_FIREBASE_PROJECT_ID || cfgJson.projectId || 'gen-lang-client-0741191357',
+    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || cfgJson.storageBucket || 'gen-lang-client-0741191357.firebasestorage.app',
+    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || cfgJson.messagingSenderId || '249850278683',
+    appId: env.VITE_FIREBASE_APP_ID || cfgJson.appId || '1:249850278683:web:5827b9deaa795d8e94d9be',
+  };
+}
+
+export const firebaseConfig = resolveConfig();
 
 // Initialize Firebase App
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

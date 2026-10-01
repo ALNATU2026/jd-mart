@@ -1,11 +1,22 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
+
+// Ensure Firebase environment variables are not inverted
+if (
+  process.env.VITE_FIREBASE_API_KEY?.includes('.firebaseapp.com') &&
+  process.env.VITE_FIREBASE_AUTH_DOMAIN?.startsWith('AIza')
+) {
+  const temp = process.env.VITE_FIREBASE_API_KEY;
+  process.env.VITE_FIREBASE_API_KEY = process.env.VITE_FIREBASE_AUTH_DOMAIN;
+  process.env.VITE_FIREBASE_AUTH_DOMAIN = temp;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,13 +25,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Ensure public/uploads directory exists for documents & images
+const uploadsDir = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 // Initialize Gemini Client
 const geminiApiKey = process.env.GEMINI_API_KEY;
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
 app.use(cors());
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use('/uploads', express.static(uploadsDir));
 
 // Health Check
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -30,8 +48,50 @@ app.get('/api/health', (_req: Request, res: Response) => {
     services: {
       gemini: !!ai,
       email: !!process.env.EMAIL_API_KEY || 'fallback_active',
+      uploads: true,
     },
   });
+});
+
+// Universal File Upload Endpoint (Images, PDFs, Word documents, etc.)
+app.post('/api/upload', async (req: Request, res: Response) => {
+  try {
+    const { fileName, fileType, base64Data, category, entityId } = req.body;
+    if (!base64Data || !fileName) {
+      return res.status(400).json({ error: 'fileName and base64Data are required.' });
+    }
+
+    const base64Clean = base64Data.includes(';base64,')
+      ? base64Data.split(';base64,').pop()
+      : base64Data;
+
+    const buffer = Buffer.from(base64Clean, 'base64');
+    const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const uniqueFileName = `${Date.now()}-${sanitizedName}`;
+    const filePath = path.join(uploadsDir, uniqueFileName);
+
+    await fs.promises.writeFile(filePath, buffer);
+
+    const publicUrl = `/uploads/${uniqueFileName}`;
+    console.log(`[FILE UPLOAD SUCCESS] Saved ${fileName} (${buffer.length} bytes) to ${publicUrl}`);
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      downloadURL: publicUrl,
+      storagePath: `uploads/${uniqueFileName}`,
+      originalName: fileName,
+      mimeType: fileType || 'application/octet-stream',
+      sizeBytes: buffer.length,
+      uploadedAt: new Date().toISOString(),
+      category: category || 'general',
+      entityId: entityId || '',
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Upload failed';
+    console.error('File upload error:', msg);
+    return res.status(500).json({ error: 'Failed to process file upload: ' + msg });
+  }
 });
 
 // Transactional Email Service Endpoint

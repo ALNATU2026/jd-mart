@@ -19,9 +19,10 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (request.auth.token.email in ['dalabapays@gmail.com', 'admin@jdmart.sl', 'admin@jdmart.com'] ||
-         request.auth.token.role == 'admin' ||
+         request.auth.token.role in ['admin', 'ADMIN'] ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          getUserData().role == 'admin'));
+          (getUserData().role in ['admin', 'ADMIN'] ||
+           ('roles' in getUserData() && ('ADMIN' in getUserData().roles || 'admin' in getUserData().roles)))));
     }
 
     function isSeller() {
@@ -54,8 +55,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isUser(userId) &&
-        (!('role' in request.resource.data) || request.resource.data.role in ['buyer', 'seller', 'dispatcher', 'employer', 'employee'] || isAdmin());
-      allow update: if (isUser(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+        (!('role' in request.resource.data) ||
+         request.resource.data.role in ['buyer', 'seller', 'dispatcher', 'employer', 'employee', 'BUYER', 'SELLER', 'EMPLOYER', 'DISPATCH_RIDER'] ||
+         isAdmin());
+      allow update: if (isUser(userId) &&
+        (!('role' in request.resource.data) || (request.resource.data.role != 'ADMIN' && request.resource.data.role != 'admin')) &&
+        (!('roles' in request.resource.data) || (!('ADMIN' in request.resource.data.roles) && !('admin' in request.resource.data.roles)))) ||
+        isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -121,12 +127,66 @@ service cloud.firestore {
     match /applications/{applicationId} {
       allow read: if isAuthenticated() &&
         (resource.data.applicantId == request.auth.uid ||
+         resource.data.employerId == request.auth.uid ||
          isAdmin());
       allow create: if isAuthenticated() &&
         (request.resource.data.applicantId == request.auth.uid || isAdmin());
       allow update: if isAuthenticated() &&
-        (resource.data.applicantId == request.auth.uid || isAdmin());
+        (resource.data.applicantId == request.auth.uid ||
+         resource.data.employerId == request.auth.uid ||
+         isAdmin());
       allow delete: if isAdmin();
+    }
+
+    // Employer Profiles Collection
+    match /employerProfiles/{profileId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Worker Profiles Collection
+    match /workerProfiles/{profileId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Interviews Collection
+    match /interviews/{interviewId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.employerId == request.auth.uid ||
+         resource.data.applicantId == request.auth.uid ||
+         isAdmin());
+      allow create, update: if isAuthenticated() &&
+        (request.resource.data.employerId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() &&
+        (resource.data.employerId == request.auth.uid || isAdmin());
+    }
+
+    // Rider Profiles Collection
+    match /riderProfiles/{riderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Rider Payouts Collection
+    match /riderPayouts/{payoutId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.riderId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() &&
+        (request.resource.data.riderId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
     }
 
     // Messages Collection
@@ -151,9 +211,81 @@ service cloud.firestore {
         (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // AdminLogs Collection
+    // Stores Collection
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        (request.resource.data.sellerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Payouts Collection
+    match /payouts/{payoutId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() &&
+        (request.resource.data.sellerId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Reviews Collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        (request.resource.data.buyerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.buyerId == request.auth.uid ||
+         resource.data.sellerId == request.auth.uid ||
+         isAdmin());
+      allow delete: if isAuthenticated() &&
+        (resource.data.buyerId == request.auth.uid || isAdmin());
+    }
+
+    // Reports Collection
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.buyerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() &&
+        (request.resource.data.buyerId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // AdminLogs and AuditLogs Collection
     match /adminLogs/{logId} {
       allow read, write: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read, write: if isAdmin();
+      allow create: if isAuthenticated();
+    }
+
+    // Categories Collection
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Seller Profiles Collection
+    match /sellerProfiles/{sellerId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Complaints Collection
+    match /complaints/{complaintId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Platform Settings Collection
+    match /platformSettings/{settingsId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

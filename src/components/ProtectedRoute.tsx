@@ -77,12 +77,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // 2. Role Check
   if (allowedRoles && allowedRoles.length > 0) {
-    const currentRoleNorm = (currentUser.role || userRole || '').toLowerCase();
-    const isAllowed = allowedRoles.some((r) => r.toLowerCase() === currentRoleNorm);
+    const rolesList = (currentUser.roles && currentUser.roles.length > 0
+      ? currentUser.roles
+      : [currentUser.role || userRole || 'BUYER']
+    ).map((r) => String(r).toLowerCase());
+
+    const isAllowed = allowedRoles.some((r) => rolesList.includes(r.toLowerCase()));
 
     if (!isAllowed) {
       const isSellerRequired = allowedRoles.includes('seller');
-      const isRiderRequired = allowedRoles.includes('dispatcher') || allowedRoles.includes('rider');
+      const isRiderRequired =
+        allowedRoles.includes('dispatcher') ||
+        allowedRoles.includes('rider') ||
+        allowedRoles.includes('dispatch_rider') ||
+        allowedRoles.includes('dispatch rider');
       const isEmployerRequired = allowedRoles.includes('employer');
 
       return (

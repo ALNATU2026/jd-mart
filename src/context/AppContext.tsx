@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import {
   User,
   UserRole,
+  CanonicalRole,
   Product,
   Category,
   CartItem,
@@ -14,7 +15,22 @@ import {
   AppNotification,
   PaymentRecord,
   AdminLog,
+  AuditLog,
+  PlatformComplaint,
+  PlatformSettings,
   UploadedFileItem,
+  DeliveryAddress,
+  UserReview,
+  UserReport,
+  ChatMessage,
+  SellerPayout,
+  EmployerProfile,
+  WorkerProfile,
+  RiderProfile,
+  RiderAvailability,
+  DeliveryStatus,
+  RiderPayout,
+  InterviewSchedule,
 } from '../types';
 import {
   INITIAL_CATEGORIES,
@@ -25,6 +41,16 @@ import {
   INITIAL_ORDERS,
   INITIAL_RIDER_DELIVERIES,
   INITIAL_NOTIFICATIONS,
+  INITIAL_REVIEWS,
+  INITIAL_REPORTS,
+  INITIAL_MESSAGES,
+  INITIAL_PAYMENTS,
+  INITIAL_PAYOUTS,
+  INITIAL_WORKER_PROFILES,
+  INITIAL_EMPLOYER_PROFILES,
+  INITIAL_RIDER_PROFILES,
+  INITIAL_INTERVIEWS,
+  INITIAL_RIDER_PAYOUTS,
   SYSTEM_ADMIN_USER,
 } from '../data/mockData';
 import {
@@ -45,6 +71,7 @@ import {
   updateDoc,
   deleteDoc,
   collection,
+  addDoc,
   onSnapshot,
   query,
   where,
@@ -60,7 +87,10 @@ interface AppContextType {
   firebaseUser: FirebaseUser | null;
   authLoading: boolean;
   userRole: UserRole;
+  canonicalRole: CanonicalRole;
+  userRoles: UserRole[];
   switchRole: (role: UserRole) => void;
+  addRoleToUser: (newRole: UserRole) => Promise<boolean>;
   login: (email: string, role?: UserRole) => boolean;
   loginWithEmail: (email: string, password?: string) => Promise<boolean>;
   loginWithGoogle: (preferredRole?: UserRole) => Promise<boolean>;
@@ -78,12 +108,21 @@ interface AppContextType {
   users: User[];
   updateUserStatus: (userId: string, status: 'active' | 'suspended' | 'pending', verified?: boolean) => Promise<void>;
 
+  // Delivery Addresses Management
+  deliveryAddresses: DeliveryAddress[];
+  addDeliveryAddress: (address: Omit<DeliveryAddress, 'id'>) => Promise<void>;
+  updateDeliveryAddress: (id: string, updates: Partial<DeliveryAddress>) => Promise<void>;
+  deleteDeliveryAddress: (id: string) => Promise<void>;
+  setDefaultDeliveryAddress: (id: string) => Promise<void>;
+
   // Categories & Products
   categories: Category[];
   products: Product[];
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => Promise<Product>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  updateProductStock: (productId: string, newStock: number) => Promise<void>;
+  toggleProductStatus: (productId: string) => Promise<void>;
 
   // Cart
   cart: CartItem[];
@@ -106,32 +145,105 @@ interface AppContextType {
   assignRiderToOrder: (orderId: string, riderId: string, riderName: string, riderPhone: string) => Promise<void>;
   rateOrder: (orderId: string, rating: number) => Promise<void>;
   cancelOrder: (orderId: string, reason: string) => Promise<void>;
+  confirmOrderDelivery: (orderId: string) => Promise<void>;
 
-  // Stores
+  // Payments & Payouts
+  payments: PaymentRecord[];
+  payouts: SellerPayout[];
+  requestPayout: (amount: number, method: SellerPayout['method'], accountNumber: string, accountName?: string) => Promise<void>;
+  approvePayout: (payoutId: string) => Promise<void>;
+
+  // Reviews & Feedback
+  reviews: UserReview[];
+  submitReview: (reviewData: Omit<UserReview, 'id' | 'createdAt'>) => Promise<void>;
+  respondToReview: (reviewId: string, replyText: string) => Promise<void>;
+
+  // Reports & Complaints
+  reports: UserReport[];
+  submitReport: (reportData: Omit<UserReport, 'id' | 'createdAt' | 'status'>) => Promise<void>;
+
+  // Real-time Communication
+  messages: ChatMessage[];
+  sendMessage: (recipientId: string, recipientName: string, text: string, orderId?: string) => Promise<void>;
+
+  // Stores & Seller Application Flow
   stores: Store[];
+  currentStore: Store | null;
+  applyToBecomeSeller: (storeData: Partial<Store>) => Promise<Store>;
+  approveSellerStore: (storeId: string) => Promise<void>;
+  rejectSellerStore: (storeId: string, reason: string) => Promise<void>;
   updateStore: (storeId: string, updates: Partial<Store>) => Promise<void>;
 
-  // Rider
+  // Rider & Courier Dispatch Fleet
   riderDeliveries: RiderDelivery[];
   riderOnline: boolean;
   toggleRiderOnline: () => void;
   acceptDelivery: (deliveryId: string) => Promise<void>;
   updateDeliveryStatus: (deliveryId: string, status: 'In Transit' | 'Delivered', photo?: string) => Promise<void>;
+  riderProfiles: RiderProfile[];
+  currentRiderProfile: RiderProfile | null;
+  applyAsDispatchRider: (data: Partial<RiderProfile>) => Promise<RiderProfile>;
+  approveRiderApplication: (riderId: string) => Promise<void>;
+  rejectRiderApplication: (riderId: string, reason: string) => Promise<void>;
+  updateRiderProfile: (riderId: string, updates: Partial<RiderProfile>) => Promise<void>;
+  suspendRiderAccount: (riderId: string) => Promise<void>;
+  activateRiderAccount: (riderId: string) => Promise<void>;
+  setRiderAvailability: (status: RiderAvailability) => Promise<void>;
+  acceptRiderDelivery: (deliveryId: string) => Promise<void>;
+  declineRiderDelivery: (deliveryId: string) => Promise<void>;
+  updateRiderDeliveryStatus: (
+    deliveryId: string,
+    newStatus: DeliveryStatus,
+    details?: { failureReason?: string; cancellationReason?: string; proofPhoto?: string; proofNotes?: string; otpInput?: string }
+  ) => Promise<boolean>;
+  riderPayouts: RiderPayout[];
+  requestRiderPayout: (amount: number, method: 'Orange Money' | 'Afrimoney' | 'Bank Transfer', accountNumber: string, accountName?: string) => Promise<void>;
+  approveRiderPayout: (payoutId: string) => Promise<void>;
+  orderReadyForPickup: (orderId: string) => Promise<void>;
 
-  // Jobs
+  // Employer & Jobs Management
   jobs: Job[];
   applications: JobApplication[];
+  employerProfiles: EmployerProfile[];
+  currentEmployer: EmployerProfile | null;
+  saveEmployerProfile: (data: Partial<EmployerProfile>) => Promise<EmployerProfile>;
   postJob: (jobData: Omit<Job, 'id' | 'applicantCount' | 'postedDate'>) => Promise<Job>;
+  updateJob: (jobId: string, updates: Partial<Job>) => Promise<void>;
+  closeJob: (jobId: string) => Promise<void>;
+  deleteJob: (jobId: string) => Promise<void>;
   applyForJob: (
     jobId: string,
     appData: { fullName: string; email: string; phone: string; coverNote: string; resumeSummary: string; resumeFileUrl?: string }
   ) => Promise<void>;
-  updateApplicationStatus: (appId: string, status: JobApplication['status']) => Promise<void>;
+  updateApplicationStatus: (appId: string, status: JobApplication['status'], notes?: string, rating?: number) => Promise<void>;
+  workerProfiles: WorkerProfile[];
+  saveWorkerProfile: (data: Partial<WorkerProfile>) => Promise<WorkerProfile>;
+  interviews: InterviewSchedule[];
+  scheduleInterview: (details: Omit<InterviewSchedule, 'id' | 'createdAt' | 'status'>) => Promise<InterviewSchedule>;
+  updateInterviewStatus: (interviewId: string, status: InterviewSchedule['status']) => Promise<void>;
 
   // Cloud Storage & Gemini AI
   uploadFile: (file: File, category: StorageCategory, entityId?: string, onProgress?: (p: number) => void) => Promise<UploadedFileMetadata>;
   generateAIDescription: (title: string, category?: string) => Promise<string>;
   analyzeImageWithAI: (imageUrl?: string, base64?: string) => Promise<any>;
+
+  // Admin Platform Operations & Governance
+  auditLogs: AuditLog[];
+  recordAuditLog: (action: string, targetType: string, targetId: string, description: string, metadata?: Record<string, unknown>) => Promise<AuditLog>;
+  updateUserRolePermissions: (userId: string, targetRole: 'SELLER' | 'EMPLOYER' | 'DISPATCH_RIDER', enable: boolean) => Promise<void>;
+  setUserAccountStatus: (userId: string, status: 'active' | 'suspended' | 'pending', reason?: string) => Promise<void>;
+  moderateProduct: (productId: string, action: 'approve' | 'reject' | 'hide' | 'unhide' | 'delete' | 'toggleFeatured', reason?: string) => Promise<void>;
+  addCategory: (cat: Omit<Category, 'id' | 'itemCount'>) => Promise<void>;
+  deleteCategory: (catId: string) => Promise<void>;
+  complaints: PlatformComplaint[];
+  resolveComplaint: (complaintId: string, notes: string) => Promise<void>;
+  submitComplaint: (data: Omit<PlatformComplaint, 'id' | 'createdAt' | 'status'>) => Promise<void>;
+  platformSettings: PlatformSettings;
+  updatePlatformSettings: (updates: Partial<PlatformSettings>) => Promise<void>;
+  reassignDeliveryRider: (deliveryId: string, newRiderId: string, newRiderName: string, newRiderPhone?: string) => Promise<void>;
+  adminCancelOrder: (orderId: string, reason: string) => Promise<void>;
+  broadcastNotification: (target: 'all' | 'sellers' | 'riders' | 'employers' | string, title: string, message: string) => Promise<void>;
+  resolveReport: (reportId: string, notes: string) => Promise<void>;
 
   // Feedback & UI
   toastMessage: string | null;
@@ -147,6 +259,16 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export const normalizeRole = (role?: string): CanonicalRole => {
+  if (!role) return 'BUYER';
+  const clean = String(role).toUpperCase().replace(/\s+/g, '_');
+  if (clean === 'ADMIN') return 'ADMIN';
+  if (clean === 'SELLER') return 'SELLER';
+  if (clean === 'EMPLOYER') return 'EMPLOYER';
+  if (clean === 'DISPATCH_RIDER' || clean === 'RIDER' || clean === 'DISPATCHER') return 'DISPATCH_RIDER';
+  return 'BUYER';
+};
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Navigation State
@@ -202,16 +324,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as User;
-            setCurrentUser(data);
-            localStorage.setItem('jdmart_current_user', JSON.stringify(data));
+            const normRole = normalizeRole(data.role);
+            const rolesList = data.roles && data.roles.length > 0 ? data.roles : [normRole];
+            const updatedUser: User = { ...data, role: normRole, roles: rolesList };
+            setCurrentUser(updatedUser);
+            localStorage.setItem('jdmart_current_user', JSON.stringify(updatedUser));
           } else {
             // First time login via provider or fallback
+            const isAdmin =
+              fbUser.email === 'dalabapays@gmail.com' ||
+              fbUser.email === 'admin@jdmart.sl' ||
+              fbUser.email === 'admin@jdmart.com';
+            const canonical: CanonicalRole = isAdmin ? 'ADMIN' : 'BUYER';
+            const rolesList: UserRole[] = isAdmin
+              ? ['ADMIN', 'BUYER', 'SELLER', 'EMPLOYER', 'DISPATCH_RIDER']
+              : ['BUYER'];
+            const defaultAddr: DeliveryAddress = {
+              id: 'addr-default-1',
+              label: 'Home',
+              recipientName: fbUser.displayName || 'Customer',
+              phone: fbUser.phoneNumber || '+232 77 000000',
+              street: '15 Campbell Street',
+              city: 'Freetown',
+              notes: 'Near Siaka Stevens Stadium',
+              isDefault: true,
+            };
             const newUser: User = {
               id: fbUser.uid,
               name: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
               email: fbUser.email || '',
               phone: fbUser.phoneNumber || '+232 77 000000',
-              role: fbUser.email === 'admin@jdmart.sl' || fbUser.email === 'admin@jdmart.com' ? 'admin' : 'buyer',
+              role: canonical,
+              roles: rolesList,
+              deliveryAddresses: [defaultAddr],
               avatar: fbUser.photoURL || '/assets/icons/account.gif',
               status: 'active',
               verified: fbUser.emailVerified || false,
@@ -248,9 +393,119 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const userRole: UserRole = currentUser ? currentUser.role : 'Guest';
+  const canonicalRole: CanonicalRole = currentUser ? normalizeRole(currentUser.role) : 'BUYER';
+  const userRoles: UserRole[] = currentUser?.roles && currentUser.roles.length > 0
+    ? currentUser.roles
+    : currentUser
+    ? [currentUser.role]
+    : ['BUYER'];
+
+  // Default fallback address for buyer
+  const defaultDeliveryAddress: DeliveryAddress = {
+    id: 'addr-default-1',
+    label: 'Home',
+    recipientName: currentUser?.name || 'Customer',
+    phone: currentUser?.phone || '+232 77 000000',
+    street: currentUser?.address || '15 Campbell Street',
+    city: currentUser?.city || 'Freetown',
+    notes: 'Near Siaka Stevens Stadium',
+    isDefault: true,
+  };
+
+  const deliveryAddresses: DeliveryAddress[] =
+    currentUser?.deliveryAddresses && currentUser.deliveryAddresses.length > 0
+      ? currentUser.deliveryAddresses
+      : [defaultDeliveryAddress];
 
   // Firestore Real-Time Listeners
-  const [categories] = useState<Category[]>(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const saved = localStorage.getItem('jdmart_categories');
+    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
+  });
+
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    const saved = localStorage.getItem('jdmart_audit_logs');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'audit-init-1',
+        adminId: 'admin-master',
+        adminName: 'Platform Director',
+        action: 'ADMIN_APPROVED_SELLER',
+        targetType: 'Store',
+        targetId: 'store-1',
+        description: 'Approved vendor registration for Salone Electronics Hub.',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'audit-init-2',
+        adminId: 'admin-master',
+        adminName: 'Platform Director',
+        action: 'ADMIN_APPROVED_RIDER',
+        targetType: 'Rider',
+        targetId: 'rider-demo-1',
+        description: 'Verified commercial license and approved courier Samuel Bangura.',
+        timestamp: new Date(Date.now() - 7200000).toISOString(),
+      },
+      {
+        id: 'audit-init-3',
+        adminId: 'admin-master',
+        adminName: 'Platform Director',
+        action: 'ADMIN_CHANGED_USER_ROLES',
+        targetType: 'User',
+        targetId: 'user-seller-1',
+        description: 'Granted SELLER permissions to store administrator.',
+        timestamp: new Date(Date.now() - 10800000).toISOString(),
+      },
+    ];
+  });
+
+  const [complaints, setComplaints] = useState<PlatformComplaint[]>(() => {
+    const saved = localStorage.getItem('jdmart_complaints');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'cmp-101',
+        userId: 'buyer-demo-1',
+        userName: 'Fatmata Sesay',
+        category: 'Delivery',
+        relatedOrderId: 'JDM-84920',
+        subject: 'Delayed courier delivery to Wilberforce',
+        description: 'Rider was delayed due to heavy rain on main motor road.',
+        priority: 'Medium',
+        status: 'In Progress',
+        createdAt: new Date(Date.now() - 14400000).toISOString(),
+      },
+      {
+        id: 'cmp-102',
+        userId: 'buyer-demo-2',
+        userName: 'Mohamed Koroma',
+        category: 'Product',
+        subject: 'Inquiry regarding warranty for smartwatch',
+        description: 'Buyer requested verification of official 12-month distributor warranty.',
+        priority: 'Low',
+        status: 'Resolved',
+        resolutionNotes: 'Merchant provided warranty card and receipt.',
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        resolvedAt: new Date(Date.now() - 43200000).toISOString(),
+      },
+    ];
+  });
+
+  const defaultPlatformSettings: PlatformSettings = {
+    commissionRate: 5,
+    baseDeliveryFee: 20,
+    requireSellerVerification: true,
+    requireJobApproval: true,
+    allowCashOnDelivery: true,
+    supportPhone: '+232 76 123456',
+    supportEmail: 'admin@jdmart.sl',
+  };
+
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => {
+    const saved = localStorage.getItem('jdmart_platform_settings');
+    return saved ? JSON.parse(saved) : defaultPlatformSettings;
+  });
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('jdmart_products');
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
@@ -276,11 +531,81 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const saved = localStorage.getItem('jdmart_notifications');
     return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
   });
+  const [reviews, setReviews] = useState<UserReview[]>(() => {
+    const saved = localStorage.getItem('jdmart_reviews');
+    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+  });
+  const [reports, setReports] = useState<UserReport[]>(() => {
+    const saved = localStorage.getItem('jdmart_reports');
+    return saved ? JSON.parse(saved) : INITIAL_REPORTS;
+  });
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const saved = localStorage.getItem('jdmart_messages');
+    return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
+  });
+  const [payments, setPayments] = useState<PaymentRecord[]>(() => {
+    const saved = localStorage.getItem('jdmart_payments');
+    return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
+  });
+  const [payouts, setPayouts] = useState<SellerPayout[]>(() => {
+    const saved = localStorage.getItem('jdmart_payouts');
+    return saved ? JSON.parse(saved) : INITIAL_PAYOUTS;
+  });
+  const [employerProfiles, setEmployerProfiles] = useState<EmployerProfile[]>(() => {
+    const saved = localStorage.getItem('jdmart_employer_profiles');
+    return saved ? JSON.parse(saved) : INITIAL_EMPLOYER_PROFILES;
+  });
+  const [workerProfiles, setWorkerProfiles] = useState<WorkerProfile[]>(() => {
+    const saved = localStorage.getItem('jdmart_worker_profiles');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const realOnly = parsed.filter(
+            (w: WorkerProfile) =>
+              !['worker-1', 'worker-2', 'worker-3', 'worker-4', 'worker-5'].includes(w.id) &&
+              !w.userId?.startsWith('user-w')
+          );
+          localStorage.setItem('jdmart_worker_profiles', JSON.stringify(realOnly));
+          return realOnly;
+        }
+      } catch {
+        return [];
+      }
+    }
+    return INITIAL_WORKER_PROFILES;
+  });
+  const [riderProfiles, setRiderProfiles] = useState<RiderProfile[]>(() => {
+    const saved = localStorage.getItem('jdmart_rider_profiles');
+    return saved ? JSON.parse(saved) : INITIAL_RIDER_PROFILES;
+  });
+  const [interviews, setInterviews] = useState<InterviewSchedule[]>(() => {
+    const saved = localStorage.getItem('jdmart_interviews');
+    return saved ? JSON.parse(saved) : INITIAL_INTERVIEWS;
+  });
+  const [riderPayouts, setRiderPayouts] = useState<RiderPayout[]>(() => {
+    const saved = localStorage.getItem('jdmart_rider_payouts');
+    return saved ? JSON.parse(saved) : INITIAL_RIDER_PAYOUTS;
+  });
 
-  // 1. Public Real-time Firestore sync subscriptions (Products & Jobs)
+  // Current Store for logged in Seller
+  const currentStore: Store | null =
+    stores.find((s) => s.sellerId === currentUser?.id || s.id === currentUser?.storeId) || null;
+
+  // Current Employer for logged in User
+  const currentEmployer: EmployerProfile | null =
+    employerProfiles.find((e) => e.userId === currentUser?.id) || null;
+
+  // Current Rider Profile for logged in Courier
+  const currentRiderProfile: RiderProfile | null =
+    riderProfiles.find((r) => r.userId === currentUser?.id) || null;
+
+  // 1. Public Real-time Firestore sync subscriptions (Products, Jobs, Reviews, Stores)
   useEffect(() => {
     let unsubProducts = () => {};
     let unsubJobs = () => {};
+    let unsubReviews = () => {};
+    let unsubStores = () => {};
 
     try {
       unsubProducts = onSnapshot(
@@ -312,14 +637,81 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.warn('Firestore jobs public sync notice:', error.message);
         }
       );
+
+      unsubReviews = onSnapshot(
+        collection(db, 'reviews'),
+        (snapshot) => {
+          const items: UserReview[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as UserReview));
+          if (items.length > 0) {
+            setReviews(items);
+            localStorage.setItem('jdmart_reviews', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Firestore reviews public sync notice:', error.message);
+        }
+      );
+
+      unsubStores = onSnapshot(
+        collection(db, 'stores'),
+        (snapshot) => {
+          const items: Store[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as Store));
+          if (items.length > 0) {
+            setStores(items);
+            localStorage.setItem('jdmart_stores', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Firestore stores public sync notice:', error.message);
+        }
+      );
+
+      let unsubEmployerProfiles = () => {};
+      let unsubWorkerProfiles = () => {};
+
+      unsubEmployerProfiles = onSnapshot(
+        collection(db, 'employerProfiles'),
+        (snapshot) => {
+          const items: EmployerProfile[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as EmployerProfile));
+          if (items.length > 0) {
+            setEmployerProfiles(items);
+            localStorage.setItem('jdmart_employer_profiles', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Firestore employer profiles sync notice:', error.message);
+        }
+      );
+
+      unsubWorkerProfiles = onSnapshot(
+        collection(db, 'workerProfiles'),
+        (snapshot) => {
+          const items: WorkerProfile[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as WorkerProfile));
+          if (items.length > 0) {
+            setWorkerProfiles(items);
+            localStorage.setItem('jdmart_worker_profiles', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Firestore worker profiles sync notice:', error.message);
+        }
+      );
+
+      return () => {
+        unsubProducts();
+        unsubJobs();
+        unsubReviews();
+        unsubStores();
+        unsubEmployerProfiles();
+        unsubWorkerProfiles();
+      };
     } catch (e) {
       console.warn('Public collections snapshot setup notice:', e);
     }
-
-    return () => {
-      unsubProducts();
-      unsubJobs();
-    };
   }, []);
 
   // 2. Authenticated Real-time Firestore sync subscriptions
@@ -469,6 +861,194 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
         unsubs.push(unsubApp);
       }
+
+      // 6. Payments (User Scoped or Admin)
+      const payQuery = isAdminUser
+        ? collection(db, 'payments')
+        : query(collection(db, 'payments'), where('userId', '==', uid));
+      const unsubPay = onSnapshot(
+        payQuery,
+        (snapshot) => {
+          const items: PaymentRecord[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as PaymentRecord));
+          if (items.length > 0) {
+            setPayments(items);
+            localStorage.setItem('jdmart_payments', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Payments sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubPay);
+
+      // 7. Reports (Buyer Scoped or Admin)
+      const repQuery = isAdminUser
+        ? collection(db, 'reports')
+        : query(collection(db, 'reports'), where('buyerId', '==', uid));
+      const unsubRep = onSnapshot(
+        repQuery,
+        (snapshot) => {
+          const items: UserReport[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as UserReport));
+          if (items.length > 0) {
+            setReports(items);
+            localStorage.setItem('jdmart_reports', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Reports sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubRep);
+
+      // 8. Messages (Real-time Chat)
+      const unsubMsg = onSnapshot(
+        collection(db, 'messages'),
+        (snapshot) => {
+          const items: ChatMessage[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as ChatMessage;
+            if (isAdminUser || data.senderId === uid || data.recipientId === uid) {
+              items.push({ id: d.id, ...data });
+            }
+          });
+          if (items.length > 0) {
+            setMessages(items);
+            localStorage.setItem('jdmart_messages', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Messages sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubMsg);
+
+      // 9. Payouts (Seller Scoped or Admin)
+      const payoutQuery = isAdminUser
+        ? collection(db, 'payouts')
+        : query(collection(db, 'payouts'), where('sellerId', '==', uid));
+      const unsubPayout = onSnapshot(
+        payoutQuery,
+        (snapshot) => {
+          const items: SellerPayout[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as SellerPayout));
+          if (items.length > 0) {
+            setPayouts(items);
+            localStorage.setItem('jdmart_payouts', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Payouts sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubPayout);
+
+      // 10. Rider Profiles (Admin or Rider)
+      const riderQuery = isAdminUser
+        ? collection(db, 'riderProfiles')
+        : query(collection(db, 'riderProfiles'), where('userId', '==', uid));
+      const unsubRiders = onSnapshot(
+        riderQuery,
+        (snapshot) => {
+          const items: RiderProfile[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as RiderProfile));
+          if (items.length > 0) {
+            setRiderProfiles((prev) => {
+              const ids = new Set(items.map((i) => i.id));
+              const merged = [...items, ...prev.filter((p) => !ids.has(p.id))];
+              localStorage.setItem('jdmart_rider_profiles', JSON.stringify(merged));
+              return merged;
+            });
+          }
+        },
+        (error) => {
+          console.warn('Rider profiles sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubRiders);
+
+      // 11. Interviews (Employer or Applicant or Admin)
+      const unsubInterviews = onSnapshot(
+        collection(db, 'interviews'),
+        (snapshot) => {
+          const items: InterviewSchedule[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as InterviewSchedule;
+            if (isAdminUser || data.employerId === uid || data.applicantId === uid) {
+              items.push({ id: d.id, ...data });
+            }
+          });
+          if (items.length > 0) {
+            setInterviews(items);
+            localStorage.setItem('jdmart_interviews', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Interviews sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubInterviews);
+
+      // 12. Rider Payouts (Rider or Admin)
+      const riderPayoutQuery = isAdminUser
+        ? collection(db, 'riderPayouts')
+        : query(collection(db, 'riderPayouts'), where('riderId', '==', uid));
+      const unsubRiderPayouts = onSnapshot(
+        riderPayoutQuery,
+        (snapshot) => {
+          const items: RiderPayout[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as RiderPayout));
+          if (items.length > 0) {
+            setRiderPayouts(items);
+            localStorage.setItem('jdmart_rider_payouts', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Rider payouts sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubRiderPayouts);
+
+      // 13. Audit Logs (Admin Only)
+      if (isAdminUser) {
+        const unsubAudit = onSnapshot(
+          collection(db, 'auditLogs'),
+          (snapshot) => {
+            const items: AuditLog[] = [];
+            snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as AuditLog));
+            if (items.length > 0) {
+              items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+              setAuditLogs(items);
+              localStorage.setItem('jdmart_audit_logs', JSON.stringify(items));
+            }
+          },
+          (error) => {
+            console.warn('Audit logs sync notice:', error.message);
+          }
+        );
+        unsubs.push(unsubAudit);
+      }
+
+      // 14. Complaints (Admin or Submitter)
+      const complaintQuery = isAdminUser
+        ? collection(db, 'complaints')
+        : query(collection(db, 'complaints'), where('userId', '==', uid));
+      const unsubComplaints = onSnapshot(
+        complaintQuery,
+        (snapshot) => {
+          const items: PlatformComplaint[] = [];
+          snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as PlatformComplaint));
+          if (items.length > 0) {
+            setComplaints(items);
+            localStorage.setItem('jdmart_complaints', JSON.stringify(items));
+          }
+        },
+        (error) => {
+          console.warn('Complaints sync notice:', error.message);
+        }
+      );
+      unsubs.push(unsubComplaints);
     } catch (e) {
       console.warn('Authenticated snapshot listeners setup error:', e);
     }
@@ -503,16 +1083,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   ): Promise<boolean> => {
     try {
       const cleanEmail = email.trim().toLowerCase();
+      const isAdminAccount =
+        cleanEmail === 'dalabapays@gmail.com' ||
+        cleanEmail === 'admin@jdmart.sl' ||
+        cleanEmail === 'admin@jdmart.com';
+
+      let assignedRole = normalizeRole(role);
+      if (assignedRole === 'ADMIN' && !isAdminAccount) {
+        showToast('Administrator role cannot be self-assigned. Defaulted to BUYER.');
+        assignedRole = 'BUYER';
+      }
+
+      const assignedRoles: UserRole[] = isAdminAccount
+        ? ['ADMIN', 'BUYER', 'SELLER', 'EMPLOYER', 'DISPATCH_RIDER']
+        : assignedRole === 'SELLER'
+        ? ['BUYER', 'SELLER']
+        : assignedRole === 'EMPLOYER'
+        ? ['BUYER', 'EMPLOYER']
+        : assignedRole === 'DISPATCH_RIDER'
+        ? ['BUYER', 'DISPATCH_RIDER']
+        : ['BUYER'];
+
       const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       await updateProfile(cred.user, { displayName: name });
 
-      const normalizedRole = role.toLowerCase() as UserRole;
+      const defaultAddr: DeliveryAddress = {
+        id: `addr-${Date.now()}`,
+        label: 'Home',
+        recipientName: name,
+        phone,
+        street: '15 Campbell Street',
+        city: 'Freetown',
+        notes: 'Near Siaka Stevens Stadium',
+        isDefault: true,
+      };
+
       const newUser: User = {
         id: cred.user.uid,
         name,
         email: cleanEmail,
         phone,
-        role: normalizedRole,
+        role: assignedRole,
+        roles: assignedRoles,
+        deliveryAddresses: [defaultAddr],
         avatar: '/assets/icons/account.gif',
         status: 'active',
         verified: false,
@@ -536,27 +1149,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           type: 'welcome',
           to: cleanEmail,
           recipientName: name,
-          role: normalizedRole,
+          role: assignedRole,
         }),
       }).catch((e) => console.warn('Welcome email error:', e));
 
-      showToast(`Account successfully registered as ${normalizedRole}!`);
+      showToast(`Account successfully registered as ${assignedRole}!`);
       // Trigger Verification Email
       try {
         await sendEmailVerification(cred.user);
       } catch (e) {
         console.warn('Auto verification notice:', e);
       }
-      redirectAfterLogin(normalizedRole);
+      redirectAfterLogin(assignedRole);
       return true;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Registration failed';
-      showToast(msg.replace('Firebase: ', ''));
+      let msg = err instanceof Error ? err.message : 'Registration failed';
+      if (msg.includes('auth/email-already-in-use')) {
+        msg = 'An account with this email already exists. Please log in instead.';
+      } else if (msg.includes('auth/weak-password')) {
+        msg = 'Password should be at least 6 characters.';
+      } else {
+        msg = msg.replace('Firebase: ', '').replace('Error (', '').replace(').', '');
+      }
+      showToast(msg);
       return false;
     }
   };
 
-  const loginWithGoogle = async (preferredRole: UserRole = 'buyer'): Promise<boolean> => {
+  const loginWithGoogle = async (preferredRole: UserRole = 'BUYER'): Promise<boolean> => {
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       const fbUser = cred.user;
@@ -564,16 +1184,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const snap = await getDoc(userDocRef);
       let userData: User;
       if (snap.exists()) {
-        userData = snap.data() as User;
+        const data = snap.data() as User;
+        const normRole = normalizeRole(data.role);
+        const rolesList = data.roles && data.roles.length > 0 ? data.roles : [normRole];
+        userData = { ...data, role: normRole, roles: rolesList };
       } else {
-        const isAdmin = fbUser.email === 'admin@jdmart.sl' || fbUser.email === 'admin@jdmart.com';
-        const roleNormalized = isAdmin ? 'admin' : ((preferredRole || 'buyer').toLowerCase() as UserRole);
+        const isAdmin =
+          fbUser.email === 'dalabapays@gmail.com' ||
+          fbUser.email === 'admin@jdmart.sl' ||
+          fbUser.email === 'admin@jdmart.com';
+        const roleNormalized: CanonicalRole = isAdmin ? 'ADMIN' : normalizeRole(preferredRole);
+        const initialRoles: UserRole[] = isAdmin
+          ? ['ADMIN', 'BUYER', 'SELLER', 'EMPLOYER', 'DISPATCH_RIDER']
+          : roleNormalized === 'SELLER'
+          ? ['BUYER', 'SELLER']
+          : roleNormalized === 'EMPLOYER'
+          ? ['BUYER', 'EMPLOYER']
+          : roleNormalized === 'DISPATCH_RIDER'
+          ? ['BUYER', 'DISPATCH_RIDER']
+          : ['BUYER'];
+
+        const defaultAddr: DeliveryAddress = {
+          id: `addr-${Date.now()}`,
+          label: 'Home',
+          recipientName: fbUser.displayName || 'Customer',
+          phone: fbUser.phoneNumber || '+232 77 000000',
+          street: '15 Campbell Street',
+          city: 'Freetown',
+          notes: 'Near Siaka Stevens Stadium',
+          isDefault: true,
+        };
+
         userData = {
           id: fbUser.uid,
           name: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
           email: fbUser.email || '',
           phone: fbUser.phoneNumber || '+232 77 000000',
           role: roleNormalized,
+          roles: initialRoles,
+          deliveryAddresses: [defaultAddr],
           avatar: fbUser.photoURL || '/assets/icons/account.gif',
           status: 'active',
           verified: fbUser.emailVerified || false,
@@ -681,11 +1330,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         showToast(`Welcome back, ${u.name}!`);
         redirectAfterLogin(u.role);
         return true;
+      } else {
+        const defaultAddr: DeliveryAddress = {
+          id: 'addr-default-1',
+          label: 'Home',
+          recipientName: cred.user.displayName || 'Customer',
+          phone: cred.user.phoneNumber || '+232 77 000000',
+          street: '15 Campbell Street',
+          city: 'Freetown',
+          notes: 'Near Siaka Stevens Stadium',
+          isDefault: true,
+        };
+        const newUser: User = {
+          id: cred.user.uid,
+          name: cred.user.displayName || cred.user.email?.split('@')[0] || 'User',
+          email: cleanEmail,
+          phone: cred.user.phoneNumber || '+232 77 000000',
+          role: 'BUYER',
+          roles: ['BUYER'],
+          deliveryAddresses: [defaultAddr],
+          avatar: cred.user.photoURL || '/assets/icons/account.gif',
+          status: 'active',
+          verified: cred.user.emailVerified || false,
+          walletBalance: 0,
+        };
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          ...newUser,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        setCurrentUser(newUser);
+        localStorage.setItem('jdmart_current_user', JSON.stringify(newUser));
+        showToast(`Welcome, ${newUser.name}!`);
+        redirectAfterLogin('BUYER');
+        return true;
       }
-      return true;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
-      showToast(msg.replace('Firebase: ', ''));
+      let msg = err instanceof Error ? err.message : 'Login failed';
+      if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password') || msg.includes('auth/user-not-found')) {
+        msg = 'Invalid email or password. Please verify your credentials or register a new account.';
+      } else if (msg.includes('auth/too-many-requests')) {
+        msg = 'Access temporarily restricted due to many failed attempts. Please reset your password or try again later.';
+      } else {
+        msg = msg.replace('Firebase: ', '').replace('Error (', '').replace(').', '');
+      }
+      showToast(msg);
       return false;
     }
   };
@@ -776,6 +1465,178 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     showToast(`User status updated to ${status}`);
   };
 
+  const addRoleToUser = async (newRole: UserRole): Promise<boolean> => {
+    const norm = normalizeRole(newRole);
+    if (norm === 'ADMIN') {
+      showToast('Unauthorized: Administrator privilege cannot be self-assigned.');
+      return false;
+    }
+    if (!currentUser) {
+      showToast('Please sign in to add a role');
+      return false;
+    }
+    const currentRoles = (currentUser.roles || [currentUser.role]).map((r) => normalizeRole(r));
+    if (currentRoles.includes(norm)) {
+      showToast(`Your account already has the ${norm} role.`);
+      return true;
+    }
+    const updatedRoles = [...currentRoles, norm];
+    const updatedUser: User = {
+      ...currentUser,
+      roles: updatedRoles,
+      role: norm,
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('jdmart_current_user', JSON.stringify(updatedUser));
+    try {
+      await updateDoc(doc(db, 'users', currentUser.id), {
+        roles: updatedRoles,
+        role: norm,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('Firestore user roles sync error:', err);
+    }
+    showToast(`Added ${norm} role! Switched active view to ${norm}.`);
+    redirectAfterLogin(norm);
+    return true;
+  };
+
+  // Delivery Addresses Management
+  const addDeliveryAddress = async (addr: Omit<DeliveryAddress, 'id'>) => {
+    if (!currentUser) return;
+    const newAddr: DeliveryAddress = {
+      ...addr,
+      id: `addr-${Date.now()}`,
+    };
+    let updatedList = [...deliveryAddresses];
+    if (newAddr.isDefault) {
+      updatedList = updatedList.map((a) => ({ ...a, isDefault: false }));
+    }
+    updatedList.push(newAddr);
+    await updateUserProfile({
+      deliveryAddresses: updatedList,
+      address: newAddr.isDefault ? `${newAddr.street}, ${newAddr.city}` : currentUser.address,
+      city: newAddr.isDefault ? newAddr.city : currentUser.city,
+    });
+    showToast(`Delivery address "${newAddr.label}" added!`);
+  };
+
+  const updateDeliveryAddress = async (id: string, updates: Partial<DeliveryAddress>) => {
+    if (!currentUser) return;
+    let updatedList = deliveryAddresses.map((a) => (a.id === id ? { ...a, ...updates } : a));
+    if (updates.isDefault) {
+      updatedList = updatedList.map((a) => (a.id === id ? { ...a, isDefault: true } : { ...a, isDefault: false }));
+    }
+    await updateUserProfile({ deliveryAddresses: updatedList });
+    showToast('Delivery address updated!');
+  };
+
+  const deleteDeliveryAddress = async (id: string) => {
+    if (!currentUser) return;
+    const updatedList = deliveryAddresses.filter((a) => a.id !== id);
+    await updateUserProfile({ deliveryAddresses: updatedList });
+    showToast('Delivery address removed');
+  };
+
+  const setDefaultDeliveryAddress = async (id: string) => {
+    if (!currentUser) return;
+    const target = deliveryAddresses.find((a) => a.id === id);
+    const updatedList = deliveryAddresses.map((a) => ({ ...a, isDefault: a.id === id }));
+    await updateUserProfile({
+      deliveryAddresses: updatedList,
+      ...(target ? { address: `${target.street}, ${target.city}`, city: target.city } : {}),
+    });
+    showToast(`Default delivery address set to ${target?.label || 'selected address'}`);
+  };
+
+  // Order Receipt Confirmation
+  const confirmOrderDelivery = async (orderId: string) => {
+    await updateOrderStatus(orderId, 'Delivered', 'Order receipt confirmed by customer. Payment released from escrow.');
+    showToast(`Delivery confirmed for Order #${orderId}. Thank you!`);
+  };
+
+  // Reviews & Rating
+  const submitReview = async (reviewData: Omit<UserReview, 'id' | 'createdAt'>) => {
+    const id = `rev-${Date.now()}`;
+    const newRev: UserReview = {
+      ...reviewData,
+      id,
+      createdAt: new Date().toISOString(),
+    };
+    setReviews((prev) => [newRev, ...prev]);
+    localStorage.setItem('jdmart_reviews', JSON.stringify([newRev, ...reviews]));
+
+    try {
+      await setDoc(doc(db, 'reviews', id), newRev);
+      const prod = products.find((p) => p.id === reviewData.productId);
+      if (prod) {
+        const prodReviews = [newRev, ...reviews.filter((r) => r.productId === prod.id)];
+        const avg = prodReviews.reduce((sum, r) => sum + r.rating, 0) / prodReviews.length;
+        await updateProduct(prod.id, {
+          rating: Number(avg.toFixed(1)),
+          reviewsCount: prodReviews.length,
+        });
+      }
+    } catch (err) {
+      console.warn('Firestore review creation error:', err);
+    }
+    showToast('Review submitted in real-time! Thank you for your feedback.');
+  };
+
+  // Reports & Complaints
+  const submitReport = async (reportData: Omit<UserReport, 'id' | 'createdAt' | 'status'>) => {
+    const id = `rep-${Date.now()}`;
+    const newReport: UserReport = {
+      ...reportData,
+      id,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    setReports((prev) => [newReport, ...prev]);
+    localStorage.setItem('jdmart_reports', JSON.stringify([newReport, ...reports]));
+    try {
+      await setDoc(doc(db, 'reports', id), newReport);
+    } catch (err) {
+      console.warn('Firestore report creation error:', err);
+    }
+    showToast('Report submitted. JD Mart Support & Safety will investigate.');
+  };
+
+  // Real-time Chat Messaging
+  const sendMessage = async (
+    recipientId: string,
+    recipientName: string,
+    text: string,
+    orderId?: string
+  ) => {
+    if (!currentUser) {
+      showToast('Please sign in to send messages');
+      return;
+    }
+    const id = `msg-${Date.now()}`;
+    const conversationId = [currentUser.id, recipientId].sort().join('_');
+    const newMsg: ChatMessage = {
+      id,
+      conversationId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderRole: String(currentUser.role),
+      recipientId,
+      recipientName,
+      text,
+      orderId,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, newMsg]);
+    try {
+      await setDoc(doc(db, 'messages', id), newMsg);
+    } catch (err) {
+      console.warn('Firestore message send error:', err);
+    }
+    showToast('Message sent in real-time!');
+  };
+
   // Products Management
   const addProduct = async (prodData: Omit<Product, 'id' | 'createdAt'>): Promise<Product> => {
     const id = `prod-${Date.now()}`;
@@ -829,6 +1690,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Firestore product delete sync:', e);
     }
     showToast('Product removed from catalog');
+  };
+
+  const updateProductStock = async (productId: string, newStock: number) => {
+    const updated = products.map((p) =>
+      p.id === productId ? { ...p, stock: Math.max(0, newStock) } : p
+    );
+    setProducts(updated);
+    localStorage.setItem('jdmart_products', JSON.stringify(updated));
+    try {
+      await updateDoc(doc(db, 'products', productId), {
+        stock: Math.max(0, newStock),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore stock update sync error:', e);
+    }
+    showToast(`Inventory updated to ${newStock} units`);
+  };
+
+  const toggleProductStatus = async (productId: string) => {
+    const target = products.find((p) => p.id === productId);
+    if (!target) return;
+    const nextStatus: 'active' | 'inactive' = target.status === 'active' ? 'inactive' : 'active';
+    const updated = products.map((p) => (p.id === productId ? { ...p, status: nextStatus } : p));
+    setProducts(updated);
+    localStorage.setItem('jdmart_products', JSON.stringify(updated));
+    try {
+      await updateDoc(doc(db, 'products', productId), {
+        status: nextStatus,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore product status toggle error:', e);
+    }
+    showToast(`Product status is now ${nextStatus}`);
   };
 
   // Cart Management
@@ -903,10 +1799,247 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const isInWishlist = (productId: string) => wishlist.includes(productId);
 
-  // Store Management
+  // Store Management & Seller Flow
   const updateStore = async (storeId: string, updates: Partial<Store>) => {
     setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, ...updates } : s)));
-    showToast('Store settings saved');
+    localStorage.setItem(
+      'jdmart_stores',
+      JSON.stringify(stores.map((s) => (s.id === storeId ? { ...s, ...updates } : s)))
+    );
+    try {
+      await updateDoc(doc(db, 'stores', storeId), {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore store update sync error:', e);
+    }
+    showToast('Store settings saved in real-time!');
+  };
+
+  const applyToBecomeSeller = async (storeData: Partial<Store>): Promise<Store> => {
+    if (!currentUser) throw new Error('Must be signed in to apply');
+    const newStoreId = `store-${currentUser.id.slice(0, 8)}`;
+    const newStore: Store = {
+      id: newStoreId,
+      sellerId: currentUser.id,
+      sellerName: currentUser.name,
+      name: storeData.name || `${currentUser.name}'s Shop`,
+      slug: (storeData.name || currentUser.name).toLowerCase().replace(/[^a-z0-9]/g, '-'),
+      logo: storeData.logo || '/assets/icons/store.png',
+      banner: storeData.banner || '/assets/banners/slide1.png',
+      category: storeData.category || 'General Merchant',
+      description: storeData.description || 'Verified merchant storefront on JD Mart.',
+      location: storeData.location || currentUser.city || 'Freetown',
+      phone: storeData.phone || currentUser.phone,
+      email: storeData.email || currentUser.email,
+      status: 'pending',
+      verified: false,
+      rating: 5.0,
+      totalSales: 0,
+      totalProducts: 0,
+      documentUrl: storeData.documentUrl || '',
+      businessInfo: storeData.businessInfo || '',
+      createdAt: new Date().toISOString(),
+      bankDetails: storeData.bankDetails || {
+        accountName: currentUser.name,
+        accountNumber: currentUser.phone,
+        bankName: 'Orange Money / Airtel Money',
+        momoNumber: currentUser.phone,
+      },
+    };
+
+    const updated = [newStore, ...stores.filter((s) => s.id !== newStoreId)];
+    setStores(updated);
+    localStorage.setItem('jdmart_stores', JSON.stringify(updated));
+
+    // Update user store status
+    await updateUserProfile({
+      storeId: newStoreId,
+    });
+
+    try {
+      await setDoc(doc(db, 'stores', newStoreId), newStore);
+      // Admin notification
+      await setDoc(doc(db, 'notifications', `notif-app-${Date.now()}`), {
+        id: `notif-app-${Date.now()}`,
+        userId: 'admin-master',
+        title: 'New Seller Store Application',
+        message: `${currentUser.name} applied to open merchant store "${newStore.name}" (${newStore.category}).`,
+        type: 'alert',
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore store application error:', e);
+    }
+
+    showToast('Seller application submitted! Status: Pending Admin Review.');
+    return newStore;
+  };
+
+  const approveSellerStore = async (storeId: string) => {
+    const storeTarget = stores.find((s) => s.id === storeId);
+    if (!storeTarget) return;
+
+    const updated = stores.map((s) =>
+      s.id === storeId ? { ...s, status: 'active' as const, verified: true } : s
+    );
+    setStores(updated);
+    localStorage.setItem('jdmart_stores', JSON.stringify(updated));
+
+    try {
+      await updateDoc(doc(db, 'stores', storeId), {
+        status: 'active',
+        verified: true,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Update user roles
+      const sellerUser = users.find((u) => u.id === storeTarget.sellerId);
+      if (sellerUser) {
+        const currentRoles = (sellerUser.roles || [sellerUser.role]).map((r) => normalizeRole(r));
+        const updatedRoles = Array.from(new Set([...currentRoles, 'SELLER' as CanonicalRole]));
+        await updateDoc(doc(db, 'users', sellerUser.id), {
+          roles: updatedRoles,
+          role: 'SELLER',
+          storeId: storeId,
+          verified: true,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      if (currentUser && currentUser.id === storeTarget.sellerId) {
+        const currentRoles = (currentUser.roles || [currentUser.role]).map((r) => normalizeRole(r));
+        const updatedRoles = Array.from(new Set([...currentRoles, 'SELLER' as CanonicalRole]));
+        const updatedUser: User = {
+          ...currentUser,
+          roles: updatedRoles,
+          role: 'SELLER',
+          storeId: storeId,
+          verified: true,
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('jdmart_current_user', JSON.stringify(updatedUser));
+      }
+
+      // Send congratulations notification to seller
+      await setDoc(doc(db, 'notifications', `notif-appr-${Date.now()}`), {
+        id: `notif-appr-${Date.now()}`,
+        userId: storeTarget.sellerId,
+        title: 'Merchant Application Approved! 🎉',
+        message: `Your storefront "${storeTarget.name}" is now certified and live on JD Mart!`,
+        type: 'success',
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore approve store sync error:', e);
+    }
+    showToast(`Store "${storeTarget.name}" approved! Seller privileges active.`);
+  };
+
+  const rejectSellerStore = async (storeId: string, reason: string) => {
+    const storeTarget = stores.find((s) => s.id === storeId);
+    if (!storeTarget) return;
+
+    const updated = stores.map((s) =>
+      s.id === storeId ? { ...s, status: 'rejected' as const, rejectionReason: reason, verified: false } : s
+    );
+    setStores(updated);
+    localStorage.setItem('jdmart_stores', JSON.stringify(updated));
+
+    try {
+      await updateDoc(doc(db, 'stores', storeId), {
+        status: 'rejected',
+        rejectionReason: reason,
+        verified: false,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Send notice to seller
+      await setDoc(doc(db, 'notifications', `notif-rej-${Date.now()}`), {
+        id: `notif-rej-${Date.now()}`,
+        userId: storeTarget.sellerId,
+        title: 'Merchant Application Update',
+        message: `Your seller application for "${storeTarget.name}" was declined. Reason: ${reason}`,
+        type: 'alert',
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore reject store sync error:', e);
+    }
+    showToast(`Store application rejected.`);
+  };
+
+  // Payouts Management
+  const requestPayout = async (
+    amount: number,
+    method: SellerPayout['method'],
+    accountNumber: string,
+    accountName?: string
+  ) => {
+    if (!currentUser) return;
+    const id = `payo-${Date.now()}`;
+    const newPayout: SellerPayout = {
+      id,
+      sellerId: currentUser.id,
+      storeId: currentStore?.id || 'store-generic',
+      storeName: currentStore?.name || currentUser.name,
+      amount,
+      method,
+      accountNumber,
+      accountName: accountName || currentUser.name,
+      status: 'Pending',
+      createdAt: new Date().toISOString(),
+    };
+    setPayouts((prev) => [newPayout, ...prev]);
+    localStorage.setItem('jdmart_payouts', JSON.stringify([newPayout, ...payouts]));
+
+    try {
+      await setDoc(doc(db, 'payouts', id), newPayout);
+      showToast(`Payout request for Le ${amount} submitted for processing.`);
+    } catch (e) {
+      console.warn('Firestore payout request error:', e);
+    }
+  };
+
+  const approvePayout = async (payoutId: string) => {
+    setPayouts((prev) =>
+      prev.map((p) => (p.id === payoutId ? { ...p, status: 'Paid', paidAt: new Date().toISOString() } : p))
+    );
+    try {
+      await updateDoc(doc(db, 'payouts', payoutId), {
+        status: 'Paid',
+        paidAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore approve payout error:', e);
+    }
+    showToast(`Payout #${payoutId} marked as Paid!`);
+  };
+
+  const respondToReview = async (reviewId: string, replyText: string) => {
+    const updated = reviews.map((r) =>
+      r.id === reviewId
+        ? { ...r, sellerReply: { text: replyText, repliedAt: new Date().toISOString() } }
+        : r
+    );
+    setReviews(updated);
+    localStorage.setItem('jdmart_reviews', JSON.stringify(updated));
+
+    try {
+      await updateDoc(doc(db, 'reviews', reviewId), {
+        sellerReply: {
+          text: replyText,
+          repliedAt: new Date().toISOString(),
+        },
+      });
+    } catch (e) {
+      console.warn('Firestore review response sync error:', e);
+    }
+    showToast('Response posted to buyer review in real-time!');
   };
 
   // Orders & Deliveries
@@ -1042,6 +2175,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           timeline: (updatedTarget as Order).timeline,
           updatedAt: new Date().toISOString(),
         });
+
+        // If marked Ready for Pickup, auto-create delivery request for riders if not already present
+        if (status === 'Ready for Pickup') {
+          const target = updatedTarget as Order;
+          const deliveryId = `del-${orderId.replace('JDM-', '')}`;
+          const existing = riderDeliveries.find((d) => d.id === deliveryId || d.orderId === orderId);
+          if (!existing) {
+            const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+            const newDelivery: RiderDelivery = {
+              id: deliveryId,
+              orderId,
+              pickupLocation: `${target.sellerName} Warehouse / Store, Freetown`,
+              deliveryLocation: `${target.buyerAddress}, ${target.buyerCity}`,
+              sellerId: target.sellerId,
+              sellerName: target.sellerName,
+              sellerPhone: '+232 76 123456',
+              customerName: target.buyerName,
+              customerPhone: target.buyerPhone,
+              packageDetails: `${target.items.length} item(s): ${target.items.map((i) => i.title).join(', ')}`,
+              itemsSummary: target.items.map((i) => `${i.quantity}x ${i.title}`).join(', '),
+              totalOrderAmount: target.total,
+              deliveryFee: (target.deliveryFee || 20) + 15,
+              status: 'DELIVERY_ASSIGNED',
+              deliveryOtp,
+              timeline: [
+                {
+                  status: 'DELIVERY_ASSIGNED',
+                  timestamp: timeStr,
+                  description: 'Order marked ready for pickup. Broadcast to courier fleet.',
+                },
+              ],
+              createdAt: now.toISOString(),
+              updatedAt: now.toISOString(),
+            };
+
+            setRiderDeliveries((prev) => [newDelivery, ...prev.filter((d) => d.id !== deliveryId)]);
+            await setDoc(doc(db, 'deliveries', deliveryId), newDelivery);
+          }
+        }
       }
     } catch (e) {
       console.warn('Firestore order status sync:', e);
@@ -1094,30 +2266,530 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     showToast(`Order #${orderId} has been cancelled`);
   };
 
-  // Courier Rider
+  // Courier Rider Fleet & Dispatch
   const [riderOnline, setRiderOnline] = useState<boolean>(true);
   const toggleRiderOnline = () => {
     setRiderOnline((prev) => {
       const next = !prev;
+      if (currentRiderProfile) {
+        setRiderAvailability(next ? 'ONLINE' : 'OFFLINE').catch(() => {});
+      }
       showToast(next ? 'You are now ONLINE to receive orders' : 'You are now OFFLINE');
       return next;
     });
   };
 
-  const acceptDelivery = async (deliveryId: string) => {
-    setRiderDeliveries((prev) =>
-      prev.map((d) => (d.id === deliveryId ? { ...d, status: 'Accepted', riderId: currentUser?.id } : d))
+  const setRiderAvailability = async (status: RiderAvailability) => {
+    if (!currentUser) return;
+    setRiderProfiles((prev) =>
+      prev.map((r) => (r.userId === currentUser.id ? { ...r, availability: status } : r))
+    );
+    setRiderOnline(status === 'ONLINE' || status === 'AVAILABLE');
+    try {
+      const myProfile = riderProfiles.find((r) => r.userId === currentUser.id);
+      if (myProfile) {
+        await updateDoc(doc(db, 'riderProfiles', myProfile.id), {
+          availability: status,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('Firestore rider availability sync:', e);
+    }
+  };
+
+  const applyAsDispatchRider = async (data: Partial<RiderProfile>): Promise<RiderProfile> => {
+    if (!currentUser) throw new Error('Sign in required');
+    const newId = `rider-${currentUser.id}`;
+    const newProfile: RiderProfile = {
+      id: newId,
+      userId: currentUser.id,
+      fullName: data.fullName || currentUser.name,
+      profilePhoto: data.profilePhoto || currentUser.avatar || '/assets/icons/delivery.png',
+      phoneNumber: data.phoneNumber || currentUser.phone || '+232 79 000000',
+      address: data.address || currentUser.address || 'Central Freetown',
+      city: data.city || currentUser.city || 'Freetown',
+      identificationType: data.identificationType || 'National ID',
+      idNumber: data.idNumber || '',
+      idDocumentUrl: data.idDocumentUrl || '',
+      vehicleType: data.vehicleType || 'Motorcycle',
+      vehicleModel: data.vehicleModel || 'Bajaj Boxer 150',
+      vehicleRegistrationNumber: data.vehicleRegistrationNumber || '',
+      vehicleRegistrationDocumentUrl: data.vehicleRegistrationDocumentUrl || '',
+      driverLicenseNumber: data.driverLicenseNumber || '',
+      driverLicenseDocumentUrl: data.driverLicenseDocumentUrl || '',
+      approvalStatus: 'pending',
+      accountStatus: 'pending',
+      availability: 'OFFLINE',
+      currentDeliveryId: null,
+      rating: 5.0,
+      totalDeliveries: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setRiderProfiles((prev) => {
+      const filtered = prev.filter((r) => r.userId !== currentUser.id && r.id !== newId);
+      const updated = [newProfile, ...filtered];
+      localStorage.setItem('jdmart_rider_profiles', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await setDoc(doc(db, 'riderProfiles', newId), newProfile);
+      await addDoc(collection(db, 'notifications'), {
+        userId: 'admin-master',
+        title: 'New Dispatch Rider Application',
+        message: `${newProfile.fullName} submitted a rider application with vehicle ${newProfile.vehicleRegistrationNumber}.`,
+        time: 'Just now',
+        read: false,
+        type: 'delivery',
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore rider application sync error:', e);
+    }
+
+    showToast('Rider application submitted! Pending admin review.');
+    return newProfile;
+  };
+
+  const approveRiderApplication = async (riderId: string) => {
+    const profile = riderProfiles.find((r) => r.id === riderId);
+    if (!profile) return;
+
+    setRiderProfiles((prev) =>
+      prev.map((r) =>
+        r.id === riderId
+          ? {
+              ...r,
+              approvalStatus: 'approved',
+              accountStatus: 'active',
+              availability: 'ONLINE',
+              activeSince: new Date().toISOString().split('T')[0],
+              updatedAt: new Date().toISOString(),
+            }
+          : r
+      )
+    );
+
+    try {
+      await updateDoc(doc(db, 'riderProfiles', riderId), {
+        approvalStatus: 'approved',
+        accountStatus: 'active',
+        availability: 'ONLINE',
+        activeSince: new Date().toISOString().split('T')[0],
+        updatedAt: new Date().toISOString(),
+      });
+
+      const userRef = doc(db, 'users', profile.userId);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const uData = userSnap.data() as User;
+        const currentRoles = uData.roles || [uData.role];
+        const newRoles: UserRole[] = currentRoles.includes('DISPATCH_RIDER')
+          ? currentRoles
+          : [...currentRoles, 'DISPATCH_RIDER'];
+
+        await updateDoc(userRef, {
+          role: 'DISPATCH_RIDER',
+          roles: newRoles,
+          status: 'active',
+          updatedAt: new Date().toISOString(),
+        });
+
+        if (currentUser && currentUser.id === profile.userId) {
+          const updatedUser: User = { ...currentUser, role: 'DISPATCH_RIDER', roles: newRoles };
+          setCurrentUser(updatedUser);
+          localStorage.setItem('jdmart_current_user', JSON.stringify(updatedUser));
+        }
+      }
+
+      await addDoc(collection(db, 'notifications'), {
+        userId: profile.userId,
+        title: 'Dispatch Rider Account Approved!',
+        message: 'Your documents and vehicle have been verified. You can now receive delivery requests.',
+        time: 'Just now',
+        read: false,
+        type: 'delivery',
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore rider approval sync error:', e);
+    }
+
+    showToast(`Rider ${profile.fullName} approved and activated!`);
+  };
+
+  const rejectRiderApplication = async (riderId: string, reason: string) => {
+    const profile = riderProfiles.find((r) => r.id === riderId);
+    if (!profile) return;
+
+    setRiderProfiles((prev) =>
+      prev.map((r) =>
+        r.id === riderId
+          ? { ...r, approvalStatus: 'rejected', rejectionReason: reason, updatedAt: new Date().toISOString() }
+          : r
+      )
+    );
+
+    try {
+      await updateDoc(doc(db, 'riderProfiles', riderId), {
+        approvalStatus: 'rejected',
+        rejectionReason: reason,
+        updatedAt: new Date().toISOString(),
+      });
+      await addDoc(collection(db, 'notifications'), {
+        userId: profile.userId,
+        title: 'Dispatch Rider Application Status',
+        message: `Your rider application was not approved: ${reason}.`,
+        time: 'Just now',
+        read: false,
+        type: 'delivery',
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore rider reject sync error:', e);
+    }
+    showToast(`Rider application for ${profile.fullName} rejected.`);
+  };
+
+  const updateRiderProfile = async (riderId: string, updates: Partial<RiderProfile>) => {
+    setRiderProfiles((prev) =>
+      prev.map((r) =>
+        r.id === riderId ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r
+      )
     );
     try {
-      await updateDoc(doc(db, 'deliveries', deliveryId), {
-        status: 'Accepted',
-        riderId: currentUser?.id,
+      await updateDoc(doc(db, 'riderProfiles', riderId), {
+        ...updates,
         updatedAt: new Date().toISOString(),
       });
     } catch (e) {
-      console.warn('Firestore delivery accept sync:', e);
+      console.warn('Firestore update rider profile error:', e);
     }
-    showToast('Delivery trip accepted! Head to the store for pickup.');
+    showToast('Rider profile updated successfully!');
+  };
+
+  const suspendRiderAccount = async (riderId: string) => {
+    setRiderProfiles((prev) =>
+      prev.map((r) =>
+        r.id === riderId ? { ...r, accountStatus: 'suspended', availability: 'SUSPENDED', updatedAt: new Date().toISOString() } : r
+      )
+    );
+    try {
+      await updateDoc(doc(db, 'riderProfiles', riderId), {
+        accountStatus: 'suspended',
+        availability: 'SUSPENDED',
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore suspend rider error:', e);
+    }
+    showToast('Rider account suspended.');
+  };
+
+  const activateRiderAccount = async (riderId: string) => {
+    setRiderProfiles((prev) =>
+      prev.map((r) =>
+        r.id === riderId ? { ...r, accountStatus: 'active', availability: 'ONLINE', updatedAt: new Date().toISOString() } : r
+      )
+    );
+    try {
+      await updateDoc(doc(db, 'riderProfiles', riderId), {
+        accountStatus: 'active',
+        availability: 'ONLINE',
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore activate rider error:', e);
+    }
+    showToast('Rider account active & online.');
+  };
+
+  const acceptRiderDelivery = async (deliveryId: string) => {
+    if (!currentUser) {
+      showToast('Please sign in to accept delivery dispatches.');
+      return;
+    }
+    const myProfile = riderProfiles.find((r) => r.userId === currentUser.id);
+    if (!myProfile || myProfile.approvalStatus !== 'approved' || myProfile.accountStatus !== 'active') {
+      showToast('Only approved, active dispatch riders can accept deliveries.');
+      return;
+    }
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    setRiderDeliveries((prev) =>
+      prev.map((d) =>
+        d.id === deliveryId
+          ? {
+              ...d,
+              status: 'GOING_TO_PICKUP',
+              riderId: currentUser.id,
+              riderName: currentUser.name,
+              riderPhone: currentUser.phone || myProfile.phoneNumber,
+              timeline: [
+                ...(d.timeline || []),
+                {
+                  status: 'GOING_TO_PICKUP',
+                  timestamp: timeStr,
+                  description: `Assigned to ${currentUser.name}. Heading to pickup location.`,
+                },
+              ],
+              updatedAt: now.toISOString(),
+            }
+          : d
+      )
+    );
+
+    setRiderProfiles((prev) =>
+      prev.map((r) =>
+        r.userId === currentUser.id
+          ? { ...r, availability: 'ON_DELIVERY', currentDeliveryId: deliveryId }
+          : r
+      )
+    );
+
+    try {
+      await updateDoc(doc(db, 'deliveries', deliveryId), {
+        status: 'GOING_TO_PICKUP',
+        riderId: currentUser.id,
+        riderName: currentUser.name,
+        riderPhone: currentUser.phone || myProfile.phoneNumber,
+        updatedAt: now.toISOString(),
+      });
+      await updateDoc(doc(db, 'riderProfiles', myProfile.id), {
+        availability: 'ON_DELIVERY',
+        currentDeliveryId: deliveryId,
+        updatedAt: now.toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore delivery accept error:', e);
+    }
+
+    showToast('Delivery accepted! Head to the store location for pickup.');
+  };
+
+  const declineRiderDelivery = async (deliveryId: string) => {
+    setRiderDeliveries((prev) =>
+      prev.map((d) =>
+        d.id === deliveryId && d.riderId === currentUser?.id
+          ? { ...d, riderId: undefined, riderName: undefined, riderPhone: undefined, status: 'Available' }
+          : d
+      )
+    );
+    showToast('Delivery request declined.');
+  };
+
+  const updateRiderDeliveryStatus = async (
+    deliveryId: string,
+    newStatus: DeliveryStatus,
+    details?: {
+      failureReason?: string;
+      cancellationReason?: string;
+      proofPhoto?: string;
+      proofNotes?: string;
+      otpInput?: string;
+    }
+  ): Promise<boolean> => {
+    const delivery = riderDeliveries.find((d) => d.id === deliveryId);
+    if (!delivery) {
+      showToast('Delivery not found.');
+      return false;
+    }
+
+    if (newStatus === 'DELIVERED' && delivery.deliveryOtp && details?.otpInput) {
+      if (details.otpInput.trim() !== delivery.deliveryOtp.trim()) {
+        showToast('Invalid Customer Delivery OTP! Please enter the correct 4-digit code.');
+        return false;
+      }
+    }
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timelineEntry = {
+      status: newStatus,
+      timestamp: timeStr,
+      description:
+        newStatus === 'DELIVERED'
+          ? `Package delivered successfully${details?.otpInput ? ' (OTP Verified)' : ''}`
+          : newStatus === 'FAILED'
+          ? `Delivery failed: ${details?.failureReason || 'Customer unavailable'}`
+          : newStatus === 'CANCELLED'
+          ? `Delivery cancelled: ${details?.cancellationReason || 'Cancelled by dispatch'}`
+          : `Rider updated status to ${newStatus.replace(/_/g, ' ')}`,
+    };
+
+    const updatedDelivery: RiderDelivery = {
+      ...delivery,
+      status: newStatus,
+      proofOfDeliveryPhoto: details?.proofPhoto || delivery.proofOfDeliveryPhoto,
+      proofNotes: details?.proofNotes || delivery.proofNotes,
+      failureReason: details?.failureReason || delivery.failureReason,
+      cancellationReason: details?.cancellationReason || delivery.cancellationReason,
+      pickupTimestamp: newStatus === 'ORDER_PICKED_UP' ? now.toISOString() : delivery.pickupTimestamp,
+      deliveredTimestamp: newStatus === 'DELIVERED' ? now.toISOString() : delivery.deliveredTimestamp,
+      timeline: [...(delivery.timeline || []), timelineEntry],
+      updatedAt: now.toISOString(),
+    };
+
+    setRiderDeliveries((prev) => {
+      const updated = prev.map((d) => (d.id === deliveryId ? updatedDelivery : d));
+      localStorage.setItem('jdmart_rider_deliveries', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await updateDoc(doc(db, 'deliveries', deliveryId), {
+        status: newStatus,
+        ...(details?.proofPhoto ? { proofOfDeliveryPhoto: details.proofPhoto } : {}),
+        ...(details?.proofNotes ? { proofNotes: details.proofNotes } : {}),
+        ...(details?.failureReason ? { failureReason: details.failureReason } : {}),
+        ...(details?.cancellationReason ? { cancellationReason: details.cancellationReason } : {}),
+        ...(newStatus === 'ORDER_PICKED_UP' ? { pickupTimestamp: now.toISOString() } : {}),
+        ...(newStatus === 'DELIVERED' ? { deliveredTimestamp: now.toISOString() } : {}),
+        timeline: updatedDelivery.timeline,
+        updatedAt: now.toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore delivery update error:', e);
+    }
+
+    if (delivery.orderId) {
+      if (newStatus === 'DELIVERED') {
+        await updateOrderStatus(delivery.orderId, 'Delivered', 'Package handed to customer by courier.');
+        if (currentUser) {
+          setRiderProfiles((prev) =>
+            prev.map((r) =>
+              r.userId === currentUser.id
+                ? {
+                    ...r,
+                    totalDeliveries: (r.totalDeliveries || 0) + 1,
+                    availability: 'ONLINE',
+                    currentDeliveryId: null,
+                  }
+                : r
+            )
+          );
+        }
+      } else if (newStatus === 'OUT_FOR_DELIVERY') {
+        await updateOrderStatus(delivery.orderId, 'Out for Delivery', 'Courier is on the way with your package.');
+      } else if (newStatus === 'FAILED' || newStatus === 'CANCELLED') {
+        if (currentUser) {
+          setRiderProfiles((prev) =>
+            prev.map((r) =>
+              r.userId === currentUser.id
+                ? { ...r, availability: 'ONLINE', currentDeliveryId: null }
+                : r
+            )
+          );
+        }
+      }
+    }
+
+    showToast(`Delivery status updated: ${newStatus.replace(/_/g, ' ')}`);
+    return true;
+  };
+
+  const requestRiderPayout = async (
+    amount: number,
+    method: 'Orange Money' | 'Afrimoney' | 'Bank Transfer',
+    accountNumber: string,
+    accountName?: string
+  ) => {
+    if (!currentUser) return;
+    const newPayout: RiderPayout = {
+      id: `rp-${Date.now().toString().slice(-6)}`,
+      riderId: currentUser.id,
+      amount,
+      method,
+      accountNumber,
+      accountName: accountName || currentUser.name,
+      status: 'Pending',
+      createdAt: new Date().toISOString(),
+    };
+    setRiderPayouts((prev) => [newPayout, ...prev]);
+    localStorage.setItem('jdmart_rider_payouts', JSON.stringify([newPayout, ...riderPayouts]));
+
+    try {
+      await setDoc(doc(db, 'riderPayouts', newPayout.id), newPayout);
+    } catch (e) {
+      console.warn('Firestore rider payout sync error:', e);
+    }
+    showToast(`Rider payout request of Le ${amount} submitted!`);
+  };
+
+  const approveRiderPayout = async (payoutId: string) => {
+    setRiderPayouts((prev) =>
+      prev.map((p) => (p.id === payoutId ? { ...p, status: 'Paid', paidAt: new Date().toISOString() } : p))
+    );
+    try {
+      await updateDoc(doc(db, 'riderPayouts', payoutId), {
+        status: 'Paid',
+        paidAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore approve rider payout error:', e);
+    }
+    showToast(`Rider payout #${payoutId} approved & marked as Paid!`);
+  };
+
+  const orderReadyForPickup = async (orderId: string) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return;
+
+    await updateOrderStatus(orderId, 'Ready for Pickup', 'Merchant prepared order. Broadcast to dispatch couriers.');
+
+    const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const deliveryId = `del-${orderId.replace('JDM-', '')}`;
+
+    const newDelivery: RiderDelivery = {
+      id: deliveryId,
+      orderId,
+      pickupLocation: `${order.sellerName} Warehouse / Store, Freetown`,
+      deliveryLocation: `${order.buyerAddress}, ${order.buyerCity}`,
+      sellerId: order.sellerId,
+      sellerName: order.sellerName,
+      sellerPhone: '+232 76 123456',
+      customerName: order.buyerName,
+      customerPhone: order.buyerPhone,
+      packageDetails: `${order.items.length} item(s): ${order.items.map((i) => i.title).join(', ')}`,
+      itemsSummary: order.items.map((i) => `${i.quantity}x ${i.title}`).join(', '),
+      totalOrderAmount: order.total,
+      deliveryFee: (order.deliveryFee || 20) + 15,
+      status: 'DELIVERY_ASSIGNED',
+      deliveryOtp,
+      timeline: [
+        {
+          status: 'DELIVERY_ASSIGNED',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          description: 'Delivery request broadcast to nearby approved riders',
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setRiderDeliveries((prev) => {
+      const filtered = prev.filter((d) => d.id !== deliveryId && d.orderId !== orderId);
+      const updated = [newDelivery, ...filtered];
+      localStorage.setItem('jdmart_rider_deliveries', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await setDoc(doc(db, 'deliveries', deliveryId), newDelivery);
+    } catch (e) {
+      console.warn('Firestore delivery request error:', e);
+    }
+    showToast(`Order #${orderId} marked Ready for Pickup! Courier dispatch request created.`);
+  };
+
+  // Backwards compatibility rider methods
+  const acceptDelivery = async (deliveryId: string) => {
+    await acceptRiderDelivery(deliveryId);
   };
 
   const updateDeliveryStatus = async (
@@ -1125,24 +2797,60 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     status: 'In Transit' | 'Delivered',
     photo?: string
   ) => {
-    setRiderDeliveries((prev) =>
-      prev.map((d) =>
-        d.id === deliveryId ? { ...d, status, ...(photo ? { proofOfDeliveryPhoto: photo } : {}) } : d
-      )
-    );
-    try {
-      await updateDoc(doc(db, 'deliveries', deliveryId), {
-        status,
-        ...(photo ? { proofOfDeliveryPhoto: photo } : {}),
-        updatedAt: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.warn('Firestore delivery update sync:', e);
-    }
-    showToast(`Delivery status updated: ${status}`);
+    const canonicalStatus: DeliveryStatus = status === 'Delivered' ? 'DELIVERED' : 'OUT_FOR_DELIVERY';
+    await updateRiderDeliveryStatus(deliveryId, canonicalStatus, { proofPhoto: photo });
   };
 
-  // Jobs Management
+  // Employer & Jobs Management
+  const saveEmployerProfile = async (data: Partial<EmployerProfile>): Promise<EmployerProfile> => {
+    if (!currentUser) throw new Error('Sign in required');
+    const existing = employerProfiles.find((e) => e.userId === currentUser.id);
+    const profileId = existing ? existing.id : `emp-${currentUser.id}`;
+    const profile: EmployerProfile = {
+      id: profileId,
+      userId: currentUser.id,
+      companyName: data.companyName || currentUser.name,
+      logo: data.logo || existing?.logo || '/assets/logos/applogo.png',
+      description: data.description || existing?.description || '',
+      phone: data.phone || currentUser.phone || '+232 76 000000',
+      email: data.email || currentUser.email || '',
+      location: data.location || currentUser.city || 'Freetown',
+      website: data.website || existing?.website || '',
+      industry: data.industry || existing?.industry || 'General',
+      companySize: data.companySize || existing?.companySize || '1-10 Employees',
+      companyInfo: data.companyInfo || existing?.companyInfo || '',
+      verificationStatus: existing?.verificationStatus || 'unverified',
+      documentUrl: data.documentUrl || existing?.documentUrl || '',
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setEmployerProfiles((prev) => {
+      const filtered = prev.filter((e) => e.id !== profileId && e.userId !== currentUser.id);
+      const updated = [profile, ...filtered];
+      localStorage.setItem('jdmart_employer_profiles', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await setDoc(doc(db, 'employerProfiles', profileId), profile);
+      const userRef = doc(db, 'users', currentUser.id);
+      const currentRoles = currentUser.roles || [currentUser.role];
+      if (!currentRoles.includes('EMPLOYER')) {
+        const newRoles: UserRole[] = [...currentRoles, 'EMPLOYER'];
+        await updateDoc(userRef, { roles: newRoles });
+        const updatedUser: User = { ...currentUser, roles: newRoles };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('jdmart_current_user', JSON.stringify(updatedUser));
+      }
+    } catch (e) {
+      console.warn('Firestore employer profile error:', e);
+    }
+
+    showToast('Employer company profile saved successfully!');
+    return profile;
+  };
+
   const postJob = async (jobData: Omit<Job, 'id' | 'applicantCount' | 'postedDate'>): Promise<Job> => {
     const newId = `job-${Date.now()}`;
     const newJob: Job = {
@@ -1166,6 +2874,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return newJob;
   };
 
+  const updateJob = async (jobId: string, updates: Partial<Job>) => {
+    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...updates } : j)));
+    try {
+      await updateDoc(doc(db, 'jobs', jobId), updates);
+    } catch (e) {
+      console.warn('Firestore update job error:', e);
+    }
+    showToast('Job listing updated!');
+  };
+
+  const closeJob = async (jobId: string) => {
+    await updateJob(jobId, { status: 'closed' });
+    showToast('Job listing closed.');
+  };
+
+  const deleteJob = async (jobId: string) => {
+    setJobs((prev) => prev.filter((j) => j.id !== jobId));
+    try {
+      await deleteDoc(doc(db, 'jobs', jobId));
+    } catch (e) {
+      console.warn('Firestore delete job error:', e);
+    }
+    showToast('Job listing deleted.');
+  };
+
   const applyForJob = async (
     jobId: string,
     appData: { fullName: string; email: string; phone: string; coverNote: string; resumeSummary: string; resumeFileUrl?: string }
@@ -1177,6 +2910,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       jobId,
       jobTitle: job?.title || 'Open Position',
       companyName: job?.employerName || 'Employer',
+      employerId: job?.employerId,
       applicantId: currentUser?.id || 'applicant-1',
       fullName: appData.fullName,
       email: appData.email,
@@ -1201,7 +2935,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Firestore job application sync:', e);
     }
 
-    // Trigger Notification Email
     fetch('/api/email/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1216,14 +2949,127 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     showToast('Application submitted successfully!');
   };
 
-  const updateApplicationStatus = async (appId: string, status: JobApplication['status']) => {
-    setApplications((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a)));
+  const updateApplicationStatus = async (
+    appId: string,
+    status: JobApplication['status'],
+    notes?: string,
+    rating?: number
+  ) => {
+    setApplications((prev) =>
+      prev.map((a) =>
+        a.id === appId
+          ? {
+              ...a,
+              status,
+              ...(notes ? { notes } : {}),
+              ...(rating !== undefined ? { rating } : {}),
+            }
+          : a
+      )
+    );
     try {
-      await updateDoc(doc(db, 'applications', appId), { status });
+      await updateDoc(doc(db, 'applications', appId), {
+        status,
+        ...(notes ? { notes } : {}),
+        ...(rating !== undefined ? { rating } : {}),
+      });
     } catch (e) {
       console.warn('Firestore app status sync:', e);
     }
     showToast(`Application marked as ${status}`);
+  };
+
+  const saveWorkerProfile = async (data: Partial<WorkerProfile>): Promise<WorkerProfile> => {
+    if (!currentUser) throw new Error('Sign in required');
+    const existing = workerProfiles.find((w) => w.userId === currentUser.id);
+    const workerId = existing ? existing.id : `worker-${currentUser.id}`;
+    const profile: WorkerProfile = {
+      id: workerId,
+      userId: currentUser.id,
+      fullName: data.fullName || currentUser.name,
+      avatar: data.avatar || currentUser.avatar || '/assets/icons/account.gif',
+      title: data.title || 'Professional Worker',
+      category: data.category || 'General',
+      skills: data.skills || [],
+      experienceYears: data.experienceYears || 1,
+      experienceLevel: data.experienceLevel || 'Intermediate',
+      location: data.location || currentUser.city || 'Freetown',
+      availability: data.availability || 'Available Immediately',
+      bio: data.bio || '',
+      phone: data.phone || currentUser.phone || '+232 77 000000',
+      email: data.email || currentUser.email || '',
+      hourlyRate: data.hourlyRate || 50,
+      resumeUrl: data.resumeUrl || '',
+      rating: existing?.rating || 5.0,
+      completedJobs: existing?.completedJobs || 0,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+    };
+
+    setWorkerProfiles((prev) => {
+      const filtered = prev.filter((w) => w.id !== workerId && w.userId !== currentUser.id);
+      const updated = [profile, ...filtered];
+      localStorage.setItem('jdmart_worker_profiles', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await setDoc(doc(db, 'workerProfiles', workerId), profile);
+    } catch (e) {
+      console.warn('Firestore save worker profile error:', e);
+    }
+
+    showToast('Worker profile saved successfully!');
+    return profile;
+  };
+
+  const scheduleInterview = async (
+    details: Omit<InterviewSchedule, 'id' | 'createdAt' | 'status'>
+  ): Promise<InterviewSchedule> => {
+    const newId = `int-${Date.now()}`;
+    const interview: InterviewSchedule = {
+      ...details,
+      id: newId,
+      status: 'Scheduled',
+      createdAt: new Date().toISOString(),
+    };
+
+    setInterviews((prev) => [interview, ...prev]);
+    localStorage.setItem('jdmart_interviews', JSON.stringify([interview, ...interviews]));
+
+    try {
+      await setDoc(doc(db, 'interviews', newId), interview);
+      await updateApplicationStatus(details.applicationId, 'Interview', details.notes);
+
+      await addDoc(collection(db, 'notifications'), {
+        userId: details.applicantId,
+        title: `Interview Scheduled: ${details.jobTitle}`,
+        message: `${details.employerName} invited you for an interview on ${details.date} at ${details.time} (${details.mode}: ${details.locationOrLink}).`,
+        time: 'Just now',
+        read: false,
+        type: 'job',
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore schedule interview error:', e);
+    }
+
+    showToast(`Interview scheduled with ${details.applicantName}!`);
+    return interview;
+  };
+
+  const updateInterviewStatus = async (
+    interviewId: string,
+    status: InterviewSchedule['status']
+  ) => {
+    setInterviews((prev) =>
+      prev.map((i) => (i.id === interviewId ? { ...i, status } : i))
+    );
+    try {
+      await updateDoc(doc(db, 'interviews', interviewId), { status });
+    } catch (e) {
+      console.warn('Firestore update interview error:', e);
+    }
+    showToast(`Interview marked as ${status}`);
   };
 
   // Cloud Storage & Gemini AI
@@ -1271,6 +3117,374 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Admin Platform Operations & Governance
+  const recordAuditLog = async (
+    action: string,
+    targetType: string,
+    targetId: string,
+    description: string,
+    metadata?: Record<string, unknown>
+  ): Promise<AuditLog> => {
+    const newLog: AuditLog = {
+      id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      adminId: currentUser?.id || 'admin-system',
+      adminName: currentUser?.name || 'Administrator',
+      action,
+      targetType,
+      targetId,
+      description,
+      timestamp: new Date().toISOString(),
+      metadata,
+    };
+    setAuditLogs((prev) => [newLog, ...prev]);
+    localStorage.setItem('jdmart_audit_logs', JSON.stringify([newLog, ...auditLogs.slice(0, 100)]));
+    try {
+      await setDoc(doc(db, 'auditLogs', newLog.id), newLog);
+    } catch (e) {
+      console.warn('Firestore record audit log notice:', e);
+    }
+    return newLog;
+  };
+
+  const updateUserRolePermissions = async (
+    userId: string,
+    targetRole: 'SELLER' | 'EMPLOYER' | 'DISPATCH_RIDER',
+    enable: boolean
+  ) => {
+    const u = users.find((usr) => usr.id === userId);
+    if (!u) return;
+
+    const currentRoles = (u.roles && u.roles.length > 0 ? u.roles : [u.role]).map((r) => String(r).toUpperCase());
+    let newRoles: UserRole[];
+    if (enable) {
+      newRoles = currentRoles.includes(targetRole)
+        ? (currentRoles as UserRole[])
+        : ([...currentRoles, targetRole] as UserRole[]);
+    } else {
+      newRoles = currentRoles.filter((r) => r !== targetRole) as UserRole[];
+      if (newRoles.length === 0) newRoles = ['BUYER'];
+    }
+
+    setUsers((prev) =>
+      prev.map((usr) => (usr.id === userId ? { ...usr, roles: newRoles, role: newRoles[0] } : usr))
+    );
+
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        roles: newRoles,
+        role: newRoles[0],
+        updatedAt: new Date().toISOString(),
+      });
+      await recordAuditLog(
+        'ADMIN_CHANGED_USER_ROLES',
+        'User',
+        userId,
+        `Admin modified roles for ${u.name} (${u.email}): ${enable ? 'granted' : 'removed'} ${targetRole}.`,
+        { previousRoles: currentRoles, newRoles }
+      );
+    } catch (e) {
+      console.warn('Firestore update roles notice:', e);
+    }
+    showToast(`Updated role permissions for ${u.name}`);
+  };
+
+  const setUserAccountStatus = async (
+    userId: string,
+    status: 'active' | 'suspended' | 'pending',
+    reason?: string
+  ) => {
+    setUsers((prev) =>
+      prev.map((usr) => (usr.id === userId ? { ...usr, status } : usr))
+    );
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        status,
+        updatedAt: new Date().toISOString(),
+      });
+      await recordAuditLog(
+        status === 'suspended' ? 'ADMIN_SUSPENDED_USER' : 'ADMIN_ACTIVATED_USER',
+        'User',
+        userId,
+        `Admin set user ${userId} account status to ${status}. ${reason ? `Reason: ${reason}` : ''}`,
+        { status, reason }
+      );
+    } catch (e) {
+      console.warn('Firestore set user status notice:', e);
+    }
+    showToast(`User status updated to ${status}.`);
+  };
+
+  const moderateProduct = async (
+    productId: string,
+    action: 'approve' | 'reject' | 'hide' | 'unhide' | 'delete' | 'toggleFeatured',
+    reason?: string
+  ) => {
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return;
+
+    if (action === 'delete') {
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      try {
+        await deleteDoc(doc(db, 'products', productId));
+        await recordAuditLog(
+          'ADMIN_REMOVED_PRODUCT',
+          'Product',
+          productId,
+          `Admin removed product "${prod.title}". ${reason ? `Reason: ${reason}` : ''}`,
+          { productTitle: prod.title, sellerId: prod.sellerId }
+        );
+      } catch (e) {
+        console.warn('Firestore product delete notice:', e);
+      }
+      showToast(`Product "${prod.title}" deleted.`);
+      return;
+    }
+
+    let statusUpdate: Product['status'] = prod.status;
+    let featuredUpdate = prod.featured;
+    let auditAction = 'ADMIN_MODERATED_PRODUCT';
+
+    if (action === 'approve') {
+      statusUpdate = 'active';
+      auditAction = 'ADMIN_APPROVED_PRODUCT';
+    } else if (action === 'reject') {
+      statusUpdate = 'rejected';
+      auditAction = 'ADMIN_REJECTED_PRODUCT';
+    } else if (action === 'hide') {
+      statusUpdate = 'hidden';
+      auditAction = 'ADMIN_HIDDEN_PRODUCT';
+    } else if (action === 'unhide') {
+      statusUpdate = 'active';
+      auditAction = 'ADMIN_UNHIDDEN_PRODUCT';
+    } else if (action === 'toggleFeatured') {
+      featuredUpdate = !prod.featured;
+      auditAction = 'ADMIN_FEATURED_PRODUCT';
+    }
+
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === productId ? { ...p, status: statusUpdate, featured: featuredUpdate } : p
+      )
+    );
+
+    try {
+      await updateDoc(doc(db, 'products', productId), {
+        status: statusUpdate,
+        featured: featuredUpdate,
+        updatedAt: new Date().toISOString(),
+      });
+      await recordAuditLog(
+        auditAction,
+        'Product',
+        productId,
+        `Admin updated product "${prod.title}" to ${statusUpdate}.`,
+        { action, previousStatus: prod.status, newStatus: statusUpdate }
+      );
+    } catch (e) {
+      console.warn('Firestore product moderation notice:', e);
+    }
+    showToast(`Product "${prod.title}" updated.`);
+  };
+
+  const addCategory = async (cat: Omit<Category, 'id' | 'itemCount'>) => {
+    const newCat: Category = {
+      id: `cat-${cat.slug || Date.now()}`,
+      itemCount: 0,
+      ...cat,
+    };
+    setCategories((prev) => [...prev, newCat]);
+    localStorage.setItem('jdmart_categories', JSON.stringify([...categories, newCat]));
+    try {
+      await setDoc(doc(db, 'categories', newCat.id), newCat);
+      await recordAuditLog('ADMIN_CREATED_CATEGORY', 'Category', newCat.id, `Admin created category "${newCat.name}"`);
+    } catch (e) {
+      console.warn('Firestore add category notice:', e);
+    }
+    showToast(`Category "${newCat.name}" added successfully.`);
+  };
+
+  const deleteCategory = async (catId: string) => {
+    setCategories((prev) => prev.filter((c) => c.id !== catId));
+    try {
+      await deleteDoc(doc(db, 'categories', catId));
+      await recordAuditLog('ADMIN_DELETED_CATEGORY', 'Category', catId, `Admin deleted category #${catId}`);
+    } catch (e) {
+      console.warn('Firestore delete category notice:', e);
+    }
+    showToast('Category deleted.');
+  };
+
+  const resolveComplaint = async (complaintId: string, notes: string) => {
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? { ...c, status: 'Resolved', resolutionNotes: notes, resolvedAt: new Date().toISOString() }
+          : c
+      )
+    );
+    try {
+      await updateDoc(doc(db, 'complaints', complaintId), {
+        status: 'Resolved',
+        resolutionNotes: notes,
+        resolvedAt: new Date().toISOString(),
+      });
+      await recordAuditLog(
+        'ADMIN_RESOLVED_COMPLAINT',
+        'Complaint',
+        complaintId,
+        `Admin resolved complaint #${complaintId}. Resolution: ${notes}`,
+        { complaintId, notes }
+      );
+    } catch (e) {
+      console.warn('Firestore resolve complaint notice:', e);
+    }
+    showToast(`Complaint #${complaintId} resolved.`);
+  };
+
+  const submitComplaint = async (data: Omit<PlatformComplaint, 'id' | 'createdAt' | 'status'>) => {
+    const newC: PlatformComplaint = {
+      id: `cmp-${Date.now()}`,
+      status: 'Open',
+      createdAt: new Date().toISOString(),
+      ...data,
+    };
+    setComplaints((prev) => [newC, ...prev]);
+    localStorage.setItem('jdmart_complaints', JSON.stringify([newC, ...complaints]));
+    try {
+      await setDoc(doc(db, 'complaints', newC.id), newC);
+    } catch (e) {
+      console.warn('Firestore submit complaint notice:', e);
+    }
+    showToast('Complaint submitted to Platform Administrator.');
+  };
+
+  const updatePlatformSettings = async (updates: Partial<PlatformSettings>) => {
+    const updated = { ...platformSettings, ...updates };
+    setPlatformSettings(updated);
+    localStorage.setItem('jdmart_platform_settings', JSON.stringify(updated));
+    try {
+      await setDoc(doc(db, 'platformSettings', 'global'), updated);
+      await recordAuditLog('ADMIN_UPDATED_SETTINGS', 'Settings', 'global', 'Admin updated platform configurations.', updates);
+    } catch (e) {
+      console.warn('Firestore settings update notice:', e);
+    }
+    showToast('Platform settings saved successfully!');
+  };
+
+  const reassignDeliveryRider = async (
+    deliveryId: string,
+    newRiderId: string,
+    newRiderName: string,
+    newRiderPhone?: string
+  ) => {
+    setRiderDeliveries((prev) =>
+      prev.map((d) =>
+        d.id === deliveryId
+          ? {
+              ...d,
+              riderId: newRiderId,
+              riderName: newRiderName,
+              riderPhone: newRiderPhone || d.riderPhone,
+              timeline: [
+                ...(d.timeline || []),
+                {
+                  status: d.status,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  description: `Admin reassigned dispatch to courier ${newRiderName}`,
+                },
+              ],
+              updatedAt: new Date().toISOString(),
+            }
+          : d
+      )
+    );
+
+    try {
+      await updateDoc(doc(db, 'deliveries', deliveryId), {
+        riderId: newRiderId,
+        riderName: newRiderName,
+        riderPhone: newRiderPhone,
+        updatedAt: new Date().toISOString(),
+      });
+      await recordAuditLog(
+        'ADMIN_REASSIGNED_DELIVERY',
+        'Delivery',
+        deliveryId,
+        `Admin reassigned delivery #${deliveryId} to courier ${newRiderName} (${newRiderId}).`,
+        { deliveryId, newRiderId, newRiderName }
+      );
+    } catch (e) {
+      console.warn('Firestore reassign delivery notice:', e);
+    }
+    showToast(`Delivery reassigned to ${newRiderName}.`);
+  };
+
+  const adminCancelOrder = async (orderId: string, reason: string) => {
+    await updateOrderStatus(orderId, 'Cancelled', `Cancelled by JD Mart Administration: ${reason}`);
+    await recordAuditLog(
+      'ADMIN_CANCELLED_ORDER',
+      'Order',
+      orderId,
+      `Admin cancelled order #${orderId}. Reason: ${reason}`,
+      { orderId, reason }
+    );
+    showToast(`Order #${orderId} cancelled.`);
+  };
+
+  const broadcastNotification = async (
+    target: 'all' | 'sellers' | 'riders' | 'employers' | string,
+    title: string,
+    message: string
+  ) => {
+    const notifId = `broadcast-${Date.now()}`;
+    const newNotif: AppNotification = {
+      id: notifId,
+      title,
+      message,
+      time: 'Just now',
+      read: false,
+      type: 'system',
+      createdAt: new Date().toISOString(),
+      userId: target === 'all' ? 'global' : target,
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+    try {
+      await addDoc(collection(db, 'notifications'), newNotif);
+      await recordAuditLog(
+        'ADMIN_BROADCAST_NOTIFICATION',
+        'Notification',
+        notifId,
+        `Admin broadcast alert to target [${target}]: "${title}"`,
+        { target, title }
+      );
+    } catch (e) {
+      console.warn('Firestore broadcast notification notice:', e);
+    }
+    showToast('Notification broadcast sent successfully!');
+  };
+
+  const resolveReport = async (reportId: string, notes: string) => {
+    setReports((prev) =>
+      prev.map((r) => (r.id === reportId ? { ...r, status: 'resolved' } : r))
+    );
+    try {
+      await updateDoc(doc(db, 'reports', reportId), {
+        status: 'resolved',
+        updatedAt: new Date().toISOString(),
+      });
+      await recordAuditLog(
+        'ADMIN_RESOLVED_REPORT',
+        'Report',
+        reportId,
+        `Admin resolved report #${reportId}. Notes: ${notes}`,
+        { reportId, notes }
+      );
+    } catch (e) {
+      console.warn('Firestore report resolve notice:', e);
+    }
+    showToast(`Report #${reportId} marked as resolved.`);
+  };
+
   // UI Drawer, Notifications & Cart Modals
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -1290,7 +3504,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         firebaseUser,
         authLoading,
         userRole,
+        canonicalRole,
+        userRoles,
         switchRole,
+        addRoleToUser,
         login,
         loginWithEmail,
         loginWithGoogle,
@@ -1302,11 +3519,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         users,
         updateUserStatus,
 
+        // Delivery Addresses
+        deliveryAddresses,
+        addDeliveryAddress,
+        updateDeliveryAddress,
+        deleteDeliveryAddress,
+        setDefaultDeliveryAddress,
+
         categories,
         products,
         addProduct,
         updateProduct,
         deleteProduct,
+        updateProductStock,
+        toggleProductStatus,
 
         cart,
         addToCart,
@@ -1326,8 +3552,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         assignRiderToOrder,
         rateOrder,
         cancelOrder,
+        confirmOrderDelivery,
 
+        // Payments & Payouts
+        payments,
+        payouts,
+        requestPayout,
+        approvePayout,
+
+        // Reviews
+        reviews,
+        submitReview,
+        respondToReview,
+
+        // Reports
+        reports,
+        submitReport,
+
+        // Messages
+        messages,
+        sendMessage,
+
+        // Stores & Seller Flow
         stores,
+        currentStore,
+        applyToBecomeSeller,
+        approveSellerStore,
+        rejectSellerStore,
         updateStore,
 
         riderDeliveries,
@@ -1335,16 +3586,61 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         toggleRiderOnline,
         acceptDelivery,
         updateDeliveryStatus,
+        riderProfiles,
+        currentRiderProfile,
+        applyAsDispatchRider,
+        approveRiderApplication,
+        rejectRiderApplication,
+        updateRiderProfile,
+        suspendRiderAccount,
+        activateRiderAccount,
+        setRiderAvailability,
+        acceptRiderDelivery,
+        declineRiderDelivery,
+        updateRiderDeliveryStatus,
+        riderPayouts,
+        requestRiderPayout,
+        approveRiderPayout,
+        orderReadyForPickup,
 
         jobs,
         applications,
+        employerProfiles,
+        currentEmployer,
+        saveEmployerProfile,
         postJob,
+        updateJob,
+        closeJob,
+        deleteJob,
         applyForJob,
         updateApplicationStatus,
+        workerProfiles,
+        saveWorkerProfile,
+        interviews,
+        scheduleInterview,
+        updateInterviewStatus,
 
         uploadFile,
         generateAIDescription,
         analyzeImageWithAI,
+
+        // Admin Platform Operations & Governance
+        auditLogs,
+        recordAuditLog,
+        updateUserRolePermissions,
+        setUserAccountStatus,
+        moderateProduct,
+        addCategory,
+        deleteCategory,
+        complaints,
+        resolveComplaint,
+        submitComplaint,
+        platformSettings,
+        updatePlatformSettings,
+        reassignDeliveryRider,
+        adminCancelOrder,
+        broadcastNotification,
+        resolveReport,
 
         toastMessage,
         showToast,

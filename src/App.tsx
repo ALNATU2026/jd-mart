@@ -68,7 +68,9 @@ const RouterView: React.FC = () => {
   // Helper matching
   const renderScreen = () => {
     // 1. PUBLIC WEBSITE & SHOP PAGES
-    if (currentPath === '/' || currentPath === '') return <HomeScreen />;
+    if (currentPath === '/' || currentPath === '' || currentPath === '/home' || currentPath === '/marketplace') {
+      return <HomeScreen />;
+    }
     if (currentPath === '/shop') return <ShopScreen />;
     if (currentPath.startsWith('/product/')) {
       const id = currentPath.replace('/product/', '').split('?')[0];
@@ -199,14 +201,14 @@ const RouterView: React.FC = () => {
     // 5. RIDER / DELIVERY PAGES
     if (currentPath === '/rider') {
       return (
-        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Courier Rider Dispatch Dashboard">
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'dispatch_rider', 'dispatch rider', 'admin']} requiredTitle="Courier Rider Dispatch Dashboard">
           <RiderDashboardScreen />
         </ProtectedRoute>
       );
     }
     if (currentPath === '/rider/deliveries') {
       return (
-        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Courier Delivery Queue">
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'dispatch_rider', 'dispatch rider', 'admin']} requiredTitle="Courier Delivery Queue">
           <RiderDeliveriesScreen />
         </ProtectedRoute>
       );
@@ -214,14 +216,14 @@ const RouterView: React.FC = () => {
     if (currentPath.startsWith('/rider/deliveries/')) {
       const id = currentPath.replace('/rider/deliveries/', '').split('?')[0];
       return (
-        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Delivery Trip Details">
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'dispatch_rider', 'dispatch rider', 'admin']} requiredTitle="Delivery Trip Details">
           <RiderDeliveryDetailScreen deliveryId={id} />
         </ProtectedRoute>
       );
     }
     if (currentPath === '/rider/earnings') {
       return (
-        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'admin']} requiredTitle="Courier Earnings">
+        <ProtectedRoute allowedRoles={['dispatcher', 'rider', 'dispatch_rider', 'dispatch rider', 'admin']} requiredTitle="Courier Earnings">
           <RiderEarningsScreen />
         </ProtectedRoute>
       );

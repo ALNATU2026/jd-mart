@@ -16,8 +16,10 @@ import {
   Phone,
   HelpCircle,
   Truck,
+  Check,
+  MessageSquare,
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, normalizeRole } from '../context/AppContext';
 
 export const Header: React.FC = () => {
   const {
@@ -25,6 +27,9 @@ export const Header: React.FC = () => {
     navigate,
     currentUser,
     userRole,
+    canonicalRole,
+    userRoles,
+    switchRole,
     logout,
     cartCount,
     wishlist,
@@ -32,12 +37,14 @@ export const Header: React.FC = () => {
     setIsNotificationsOpen,
     setIsCartOpen,
     notifications,
+    messages,
   } = useApp();
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
+  const unreadMessagesCount = messages.filter((m) => m.recipientId === currentUser?.id && !m.read).length;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +55,7 @@ export const Header: React.FC = () => {
     }
   };
 
-  const isAdmin = currentUser?.role === 'Admin';
+  const isAdmin = canonicalRole === 'ADMIN';
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs">
@@ -126,74 +133,89 @@ export const Header: React.FC = () => {
             </button>
           </div>
 
-          {/* Search Bar */}
-          <form
-            onSubmit={handleSearchSubmit}
-            className="flex-1 max-w-xl mx-2 hidden md:flex items-center relative"
-          >
-            <div className="relative w-full">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products, verified stores, dispatch riders, jobs..."
-                className="w-full pl-10 pr-20 py-2.5 bg-slate-100/90 border border-slate-200 rounded-full text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#1E40AF] focus:bg-white transition-all"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <button
-                type="submit"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-[#1E40AF] hover:bg-blue-700 text-white rounded-full text-xs font-semibold transition-colors"
-              >
-                Search
-              </button>
-            </div>
-          </form>
+          {/* Search Bar - Visible ONLY when logged in */}
+          {currentUser && (
+            <form
+              onSubmit={handleSearchSubmit}
+              className="flex-1 max-w-xl mx-2 hidden md:flex items-center relative"
+            >
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products, verified stores, dispatch riders, jobs..."
+                  className="w-full pl-10 pr-20 py-2.5 bg-slate-100/90 border border-slate-200 rounded-full text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#1E40AF] focus:bg-white transition-all"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <button
+                  type="submit"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-[#1E40AF] hover:bg-blue-700 text-white rounded-full text-xs font-semibold transition-colors"
+                >
+                  Search
+                </button>
+              </div>
+            </form>
+          )}
 
           {/* Right Action Icons & User Account */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Mobile Search Button */}
-            <button
-              onClick={() => navigate('/search')}
-              className="p-2 text-slate-600 hover:text-[#1E40AF] md:hidden rounded-lg hover:bg-slate-100"
-              title="Search"
-            >
-              <Search className="w-5 h-5" />
-            </button>
+          {currentUser ? (
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Mobile Search Button */}
+              <button
+                onClick={() => navigate('/search')}
+                className="p-2 text-slate-600 hover:text-[#1E40AF] md:hidden rounded-lg hover:bg-slate-100"
+                title="Search"
+              >
+                <Search className="w-5 h-5" />
+              </button>
 
-            {/* Notifications Button */}
-            <button
-              onClick={() => setIsNotificationsOpen(true)}
-              className="relative p-2 text-slate-600 hover:text-[#1E40AF] rounded-xl hover:bg-slate-100 transition-colors"
-              title="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              {unreadNotifCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#F97316] text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
-                  {unreadNotifCount}
-                </span>
-              )}
-            </button>
+              {/* Chat & Messages Button */}
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="relative p-2 text-slate-600 hover:text-[#1E40AF] rounded-xl hover:bg-slate-100 transition-colors"
+                title="Chat & Messages"
+              >
+                <MessageSquare className="w-5 h-5" />
+                {unreadMessagesCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                    {unreadMessagesCount}
+                  </span>
+                )}
+              </button>
 
-            {/* Shopping Cart Button */}
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-slate-600 hover:text-[#1E40AF] rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-1.5"
-              title="Shopping Cart"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {cartCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 sm:relative sm:top-0 sm:right-0 px-1.5 py-0.5 bg-[#1E40AF] text-white text-[11px] font-bold rounded-full">
-                  {cartCount}
-                </span>
-              )}
-            </button>
+              {/* Notifications Button */}
+              <button
+                onClick={() => setIsNotificationsOpen(true)}
+                className="relative p-2 text-slate-600 hover:text-[#1E40AF] rounded-xl hover:bg-slate-100 transition-colors"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#F97316] text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                    {unreadNotifCount}
+                  </span>
+                )}
+              </button>
 
-            {/* User Account / Profile Dropdown */}
-            <div className="relative">
-              {currentUser ? (
-                <div className="relative">
-                  <button
-                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+              {/* Shopping Cart Button */}
+              <button
+                onClick={() => setIsCartOpen(true)}
+                className="relative p-2 text-slate-600 hover:text-[#1E40AF] rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+                title="Shopping Cart"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 sm:relative sm:top-0 sm:right-0 px-1.5 py-0.5 bg-[#1E40AF] text-white text-[11px] font-bold rounded-full">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+
+              {/* User Account / Profile Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                     className={`flex items-center gap-2 p-1.5 pl-2.5 rounded-full transition-all border ${
                       isAdmin
                         ? 'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
@@ -214,17 +236,23 @@ export const Header: React.FC = () => {
                         }}
                       />
                     )}
-                    <span className="text-xs font-bold hidden sm:inline max-w-[100px] truncate">
-                      {isAdmin ? 'Admin' : currentUser.name}
+                    <span className="text-xs font-black text-slate-800 hidden sm:inline max-w-[120px] truncate">
+                      {currentUser.name}
                     </span>
                     <span
-                      className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full hidden md:inline ${
-                        isAdmin
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hidden md:inline shadow-2xs ${
+                        canonicalRole === 'SELLER'
+                          ? 'bg-emerald-600 text-white'
+                          : canonicalRole === 'DISPATCH_RIDER'
+                          ? 'bg-orange-600 text-white'
+                          : canonicalRole === 'EMPLOYER'
+                          ? 'bg-indigo-600 text-white'
+                          : canonicalRole === 'ADMIN'
                           ? 'bg-red-600 text-white'
-                          : 'bg-blue-100 text-[#1E40AF]'
+                          : 'bg-[#1E40AF] text-white'
                       }`}
                     >
-                      {currentUser.role}
+                      {canonicalRole}
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   </button>
@@ -248,6 +276,38 @@ export const Header: React.FC = () => {
                           Role: {currentUser.role}
                         </span>
                       </div>
+
+                      {/* Multi-role quick switcher if user has more than 1 role */}
+                      {userRoles && userRoles.length > 1 && (
+                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+                            <span>My Roles</span>
+                            <span className="text-[9px] text-[#1E40AF] font-bold">Role Switcher</span>
+                          </span>
+                          <div className="grid grid-cols-2 gap-1">
+                            {userRoles.map((r) => {
+                              const isCurrent = normalizeRole(r) === canonicalRole;
+                              return (
+                                <button
+                                  key={r}
+                                  onClick={() => {
+                                    setUserDropdownOpen(false);
+                                    switchRole(r);
+                                  }}
+                                  className={`px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center justify-between transition-all ${
+                                    isCurrent
+                                      ? 'bg-[#1E40AF] text-white shadow-xs'
+                                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  <span className="truncate">{r}</span>
+                                  {isCurrent && <Check className="w-3 h-3 text-white ml-1 shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Admin Specific Links */}
                       {isAdmin ? (
@@ -319,7 +379,7 @@ export const Header: React.FC = () => {
                       ) : (
                         /* Normal User Links (Role-Specific) */
                         <div className="py-1">
-                          {currentUser.role === 'Seller' && (
+                          {canonicalRole === 'SELLER' && (
                             <>
                               <button
                                 onClick={() => {
@@ -344,7 +404,7 @@ export const Header: React.FC = () => {
                             </>
                           )}
 
-                          {currentUser.role === 'Rider' && (
+                          {canonicalRole === 'DISPATCH_RIDER' && (
                             <button
                               onClick={() => {
                                 setUserDropdownOpen(false);
@@ -357,7 +417,7 @@ export const Header: React.FC = () => {
                             </button>
                           )}
 
-                          {currentUser.role === 'Employer' && (
+                          {canonicalRole === 'EMPLOYER' && (
                             <button
                               onClick={() => {
                                 setUserDropdownOpen(false);
@@ -370,31 +430,16 @@ export const Header: React.FC = () => {
                             </button>
                           )}
 
-                          {currentUser.role === 'Job Seeker' && (
-                            <button
-                              onClick={() => {
-                                setUserDropdownOpen(false);
-                                navigate('/job-seeker/dashboard');
-                              }}
-                              className="w-full text-left px-4 py-2 text-xs text-purple-700 hover:bg-purple-50 flex items-center gap-2.5 font-bold"
-                            >
-                              <Briefcase className="w-4 h-4 text-purple-600" />
-                              Job Applications
-                            </button>
-                          )}
-
-                          {currentUser.role === 'Buyer' && (
-                            <button
-                              onClick={() => {
-                                setUserDropdownOpen(false);
-                                navigate('/dashboard');
-                              }}
-                              className="w-full text-left px-4 py-2 text-xs text-blue-700 hover:bg-blue-50 flex items-center gap-2.5 font-bold"
-                            >
-                              <ShoppingBag className="w-4 h-4 text-blue-600" />
-                              Buyer Dashboard
-                            </button>
-                          )}
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              navigate('/dashboard');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs text-blue-700 hover:bg-blue-50 flex items-center gap-2.5 font-bold"
+                          >
+                            <ShoppingBag className="w-4 h-4 text-blue-600" />
+                            Buyer Dashboard
+                          </button>
 
                           <button
                             onClick={() => {
@@ -444,27 +489,26 @@ export const Header: React.FC = () => {
                     </div>
                   )}
                 </div>
-              ) : (
-                /* When Logged Out: Clean Sign In & Register */
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigate('/login')}
-                    className="px-3.5 py-1.5 text-xs font-bold text-[#1E40AF] hover:bg-blue-50 rounded-xl transition-colors"
-                  >
-                    Sign In
-                  </button>
-                  <button
-                    onClick={() => navigate('/register')}
-                    className="px-3.5 py-1.5 text-xs font-bold bg-[#1E40AF] text-white rounded-xl hover:bg-blue-700 transition-colors shadow-xs"
-                  >
-                    Register
-                  </button>
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* When Logged Out: ONLY Sign In & Register Buttons Showing at the Top */
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="px-4 py-2 text-xs font-bold text-[#1E40AF] hover:bg-blue-50 rounded-xl transition-colors border border-blue-200"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => navigate('/register')}
+                  className="px-4 py-2 text-xs font-bold bg-[#1E40AF] text-white rounded-xl hover:bg-blue-700 transition-colors shadow-xs"
+                >
+                  Register
+                </button>
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
       {/* Main Navigation Sub-bar (Customer & Merchant Facing - NO Admin button here!) */}
       <nav className="bg-slate-50/80 border-t border-slate-200/70 overflow-x-auto text-xs font-semibold text-slate-700 scrollbar-none">

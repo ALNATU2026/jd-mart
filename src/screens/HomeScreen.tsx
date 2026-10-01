@@ -24,6 +24,9 @@ import { useApp } from '../context/AppContext';
 
 export const HomeScreen: React.FC = () => {
   const {
+    currentUser,
+    canonicalRole,
+    userRoles,
     products,
     categories,
     stores,
@@ -68,6 +71,89 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F5F7FB]">
+      {/* PERSONALIZED MEMBER CONSOLE BAR (Visible when logged in) */}
+      {currentUser && (
+        <div className="bg-slate-900 border-b border-slate-800 text-white py-3 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <img
+                src={currentUser.avatar || '/assets/icons/account.gif'}
+                alt={currentUser.name}
+                className="w-9 h-9 rounded-full object-cover border border-white/20 bg-blue-100 shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/assets/icons/account.gif';
+                }}
+              />
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-300">Welcome,</span>
+                  <strong className="text-sm font-black text-white">{currentUser.name}</strong>
+                  <span
+                    className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                      canonicalRole === 'SELLER'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : canonicalRole === 'DISPATCH_RIDER'
+                        ? 'bg-orange-600 text-white shadow-xs'
+                        : canonicalRole === 'EMPLOYER'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : canonicalRole === 'ADMIN'
+                        ? 'bg-red-600 text-white shadow-xs'
+                        : 'bg-[#1E40AF] text-white shadow-xs'
+                    }`}
+                  >
+                    {canonicalRole}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  JD Mart Marketplace & Dispatch Dashboard Active
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-white transition-colors"
+              >
+                My Account
+              </button>
+              {canonicalRole === 'SELLER' && (
+                <button
+                  onClick={() => navigate('/seller')}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-bold text-white transition-colors shadow-xs"
+                >
+                  Seller Hub
+                </button>
+              )}
+              {canonicalRole === 'DISPATCH_RIDER' && (
+                <button
+                  onClick={() => navigate('/rider')}
+                  className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-700 rounded-xl text-xs font-bold text-white transition-colors shadow-xs"
+                >
+                  Rider Console
+                </button>
+              )}
+              {canonicalRole === 'EMPLOYER' && (
+                <button
+                  onClick={() => navigate('/employer')}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-xs font-bold text-white transition-colors shadow-xs"
+                >
+                  Employer Portal
+                </button>
+              )}
+              {canonicalRole === 'ADMIN' && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 rounded-xl text-xs font-bold text-white transition-colors shadow-xs"
+                >
+                  Admin Console
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HERO BANNER SECTION */}
       <section className="relative bg-linear-to-br from-[#1E40AF] via-[#1E3A8A] to-[#0F172A] text-white pt-10 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
         {/* Decorative background glow circles */}
