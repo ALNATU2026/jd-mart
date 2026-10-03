@@ -5,6 +5,7 @@ import { Footer } from './components/Footer';
 import { Drawer } from './components/Drawer';
 import { CartDrawer } from './components/CartDrawer';
 import { NotificationsModal } from './components/NotificationsModal';
+import { ChatMessengerWidget } from './components/ChatMessengerWidget';
 import { Toast } from './components/Toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -330,6 +331,7 @@ const RouterView: React.FC = () => {
       <Drawer />
       <CartDrawer />
       <NotificationsModal />
+      <ChatMessengerWidget />
       <Toast />
     </div>
   );

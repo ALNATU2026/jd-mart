@@ -3,7 +3,7 @@ import { ArrowLeft, Save, Briefcase } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const PostJobScreen: React.FC = () => {
-  const { postJob, navigate, showToast } = useApp();
+  const { postJob, navigate, showToast, currentUser, currentEmployer } = useApp();
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Logistics & Delivery');
@@ -31,8 +31,9 @@ export const PostJobScreen: React.FC = () => {
       .filter((r) => r.length > 0);
 
     postJob({
-      employerId: 'user-emp-1',
-      employerName: 'JD Partner Employer',
+      employerId: currentUser?.id || currentEmployer?.id || 'user-emp-1',
+      employerName: currentEmployer?.companyName || currentUser?.name || 'JD Partner Employer',
+      employerLogo: currentEmployer?.logo || currentUser?.avatar || '',
       title,
       category,
       type,

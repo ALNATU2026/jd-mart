@@ -1,11 +1,45 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Send, CheckCircle2, Building2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { Job } from '../types';
 
 export const JobApplyScreen: React.FC<{ jobId: string }> = ({ jobId }) => {
   const { jobs, applyForJob, uploadFile, currentUser, navigate, showToast } = useApp();
 
-  const job = jobs.find((j) => j.id === jobId) || jobs[0];
+  const [currentJob, setCurrentJob] = useState<Job | null>(() => {
+    return jobs.find((j) => j.id === jobId) || null;
+  });
+  const [loadingJob, setLoadingJob] = useState(!currentJob);
+
+  useEffect(() => {
+    const existing = jobs.find((j) => j.id === jobId);
+    if (existing) {
+      setCurrentJob(existing);
+      setLoadingJob(false);
+      return;
+    }
+
+    if (jobId) {
+      setLoadingJob(true);
+      getDoc(doc(db, 'jobs', jobId))
+        .then((snapshot) => {
+          if (snapshot.exists()) {
+            setCurrentJob({ id: snapshot.id, ...snapshot.data() } as Job);
+          } else if (jobs.length > 0) {
+            setCurrentJob(jobs[0]);
+          }
+        })
+        .catch((err) => {
+          console.warn('Error fetching job details for application:', err);
+          if (jobs.length > 0) setCurrentJob(jobs[0]);
+        })
+        .finally(() => setLoadingJob(false));
+    }
+  }, [jobId, jobs]);
+
+  const targetJob = currentJob || jobs[0];
 
   const [fullName, setFullName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
@@ -18,11 +52,11 @@ export const JobApplyScreen: React.FC<{ jobId: string }> = ({ jobId }) => {
 
   const handleCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !targetJob) return;
 
     try {
       setUploadingCV(true);
-      const metadata = await uploadFile(file, 'employee-cv', job.id);
+      const metadata = await uploadFile(file, 'employee-cv', targetJob.id);
       setResumeFileUrl(metadata.downloadURL);
       setCvFileName(file.name);
       showToast('CV document uploaded to Firebase Storage!');
@@ -34,41 +68,70 @@ export const JobApplyScreen: React.FC<{ jobId: string }> = ({ jobId }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || !email || !phone || !coverNote) {
       showToast('Please fill out all required fields');
       return;
     }
 
-    applyForJob(job.id, {
+    if (!targetJob) {
+      showToast('Unable to locate target job vacancy.');
+      return;
+    }
+
+    // Verify employer ID matches the posted job
+    const verifiedEmployerId = targetJob.employerId;
+    console.log("[JobApplyScreen] Verified employer ID matches posted job:", {
+      jobId: targetJob.id,
+      jobTitle: targetJob.title,
+      employerId: verifiedEmployerId,
+      employerName: targetJob.employerName,
+      candidate: fullName,
+    });
+
+    await applyForJob(targetJob.id, {
       fullName,
       email,
       phone,
       coverNote,
       resumeSummary: resumeSummary || 'Verified JD Mart candidate profile & background',
       resumeFileUrl,
+      employerId: verifiedEmployerId,
+      jobTitle: targetJob.title,
+      companyName: targetJob.employerName,
     });
 
     navigate('/job-seeker/dashboard');
   };
+
+  if (loadingJob && !targetJob) {
+    return (
+      <div className="min-h-screen bg-[#F5F7FB] py-12 px-4 flex items-center justify-center">
+        <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xs text-center space-y-3">
+          <div className="w-8 h-8 border-3 border-[#1E40AF] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-slate-500 font-medium">Verifying vacancy and employer details...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F7FB] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
           <button
-            onClick={() => navigate(`/jobs/${job.id}`)}
+            onClick={() => navigate(`/jobs/${targetJob.id}`)}
             className="flex items-center gap-1.5 text-xs font-bold text-[#1E40AF] hover:underline mb-2"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Job Details</span>
           </button>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Apply: {job.title}
+            Apply: {targetJob.title}
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Submitting application directly to <strong className="text-slate-800">{job.employerName}</strong>
+            Submitting application directly to <strong className="text-slate-800">{targetJob.employerName}</strong>
           </p>
         </div>
 

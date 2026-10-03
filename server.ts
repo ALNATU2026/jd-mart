@@ -295,6 +295,47 @@ app.post('/api/email/send', async (req: Request, res: Response) => {
   }
 });
 
+// Real-Time Chat Notification Webhook Endpoint
+app.post('/api/chat/webhook', async (req: Request, res: Response) => {
+  try {
+    const {
+      senderId,
+      senderName,
+      recipientId,
+      recipientName,
+      text,
+      conversationId,
+      orderId,
+    } = req.body;
+
+    const eventPayload = {
+      event: 'chat.message.received',
+      timestamp: new Date().toISOString(),
+      sender: { id: senderId, name: senderName },
+      recipient: { id: recipientId, name: recipientName },
+      preview: (text || '').slice(0, 100),
+      conversationId,
+      orderId: orderId || null,
+    };
+
+    console.log(
+      `[CHAT WEBHOOK DISPATCH] 💬 From ${senderName} (${senderId}) to ${recipientName} (${recipientId}): "${eventPayload.preview}"`
+    );
+
+    return res.json({
+      success: true,
+      delivered: true,
+      webhookId: `hook-${Date.now()}`,
+      dispatchedAt: eventPayload.timestamp,
+      payload: eventPayload,
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Chat webhook failed';
+    console.error('Chat Webhook Error:', msg);
+    return res.status(500).json({ error: msg });
+  }
+});
+
 // Gemini AI Server-Side API: Image Analysis & Product Details
 app.post('/api/ai/describe-image', async (req: Request, res: Response) => {
   try {

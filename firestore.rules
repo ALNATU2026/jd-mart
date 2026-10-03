@@ -123,7 +123,22 @@ service cloud.firestore {
         (resource.data.employerId == request.auth.uid || isAdmin());
     }
 
-    // Applications Collection
+    // Job Applications Collections
+    match /job_applications/{applicationId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.applicantId == request.auth.uid ||
+         resource.data.employerId == request.auth.uid ||
+         isAdmin());
+      allow create: if isAuthenticated() &&
+        (request.resource.data.applicantId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.applicantId == request.auth.uid ||
+         resource.data.employerId == request.auth.uid ||
+         isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Applications Collection (Legacy alias)
     match /applications/{applicationId} {
       allow read: if isAuthenticated() &&
         (resource.data.applicantId == request.auth.uid ||
@@ -194,6 +209,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         (resource.data.senderId == request.auth.uid ||
          resource.data.receiverId == request.auth.uid ||
+         resource.data.recipientId == request.auth.uid ||
          isAdmin());
       allow create: if isAuthenticated() &&
         (request.resource.data.senderId == request.auth.uid || isAdmin());

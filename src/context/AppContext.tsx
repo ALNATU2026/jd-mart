@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
+  playMessageSound,
+  vibratePhone,
+  showPhonePopUpNotification,
+  requestNotificationPermission,
+} from '../lib/notificationSounds';
+import {
   User,
   UserRole,
   CanonicalRole,
@@ -165,6 +171,12 @@ interface AppContextType {
   // Real-time Communication
   messages: ChatMessage[];
   sendMessage: (recipientId: string, recipientName: string, text: string, orderId?: string) => Promise<void>;
+  activeChatRecipient: { id: string; name: string; avatar?: string; role?: string } | null;
+  openChatWithUser: (userId: string, userName: string, avatar?: string, role?: string) => void;
+  closeChatModal: () => void;
+  isChatDrawerOpen: boolean;
+  setIsChatDrawerOpen: (open: boolean) => void;
+  testNotificationAlert: () => Promise<void>;
 
   // Stores & Seller Application Flow
   stores: Store[];
@@ -213,7 +225,17 @@ interface AppContextType {
   deleteJob: (jobId: string) => Promise<void>;
   applyForJob: (
     jobId: string,
-    appData: { fullName: string; email: string; phone: string; coverNote: string; resumeSummary: string; resumeFileUrl?: string }
+    appData: {
+      fullName: string;
+      email: string;
+      phone: string;
+      coverNote: string;
+      resumeSummary: string;
+      resumeFileUrl?: string;
+      employerId?: string;
+      jobTitle?: string;
+      companyName?: string;
+    }
   ) => Promise<void>;
   updateApplicationStatus: (appId: string, status: JobApplication['status'], notes?: string, rating?: number) => Promise<void>;
   workerProfiles: WorkerProfile[];
@@ -522,7 +544,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const saved = localStorage.getItem('jdmart_jobs');
     return saved ? JSON.parse(saved) : INITIAL_JOBS;
   });
-  const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [applications, setApplications] = useState<JobApplication[]>(() => {
+    const saved = localStorage.getItem('jdmart_applications');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [riderDeliveries, setRiderDeliveries] = useState<RiderDelivery[]>(() => {
     const saved = localStorage.getItem('jdmart_rider_deliveries');
     return saved ? JSON.parse(saved) : INITIAL_RIDER_DELIVERIES;
@@ -543,6 +568,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const saved = localStorage.getItem('jdmart_messages');
     return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
   });
+  const [activeChatRecipient, setActiveChatRecipient] = useState<{
+    id: string;
+    name: string;
+    avatar?: string;
+    role?: string;
+  } | null>(null);
+  const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
+
+  const openChatWithUser = (
+    userId: string,
+    userName: string,
+    avatar?: string,
+    role?: string
+  ) => {
+    setActiveChatRecipient({ id: userId, name: userName, avatar, role });
+    setIsChatDrawerOpen(true);
+  };
+
+  const closeChatModal = () => {
+    setActiveChatRecipient(null);
+  };
+
+  const testNotificationAlert = async () => {
+    await requestNotificationPermission();
+    showPhonePopUpNotification(
+      '💬 JD Mart Alert Notification',
+      'Test notification sound and phone vibration triggered successfully!',
+      {
+        tag: `test-${Date.now()}`,
+      }
+    );
+    showToast('Alert sound and phone pop-up notification triggered!');
+  };
   const [payments, setPayments] = useState<PaymentRecord[]>(() => {
     const saved = localStorage.getItem('jdmart_payments');
     return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
@@ -832,34 +890,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       unsubs.push(unsubNotif);
 
-      // 5. Applications (Employer or Candidate)
+      // 5. Applications (Employer and Candidate Sync from 'job_applications' collection)
       if (isAdminUser) {
         const unsubApp = onSnapshot(
-          collection(db, 'applications'),
+          collection(db, 'job_applications'),
           (snapshot) => {
             const items: JobApplication[] = [];
             snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as JobApplication));
-            setApplications(items);
+            if (items.length > 0) {
+              setApplications(items);
+              localStorage.setItem('jdmart_applications', JSON.stringify(items));
+            }
           },
           (error) => {
-            console.warn('Admin applications sync notice:', error.message);
+            console.warn("Admin 'job_applications' sync notice:", error.message);
           }
         );
         unsubs.push(unsubApp);
       } else {
-        const appQuery = query(collection(db, 'applications'), where('applicantId', '==', uid));
+        let applicantApps: JobApplication[] = [];
+        let employerApps: JobApplication[] = [];
+
+        const updateMergedApps = () => {
+          const map = new Map<string, JobApplication>();
+          applicantApps.forEach((a) => map.set(a.id, a));
+          employerApps.forEach((a) => map.set(a.id, a));
+          const merged = Array.from(map.values());
+          if (merged.length > 0) {
+            setApplications(merged);
+            localStorage.setItem('jdmart_applications', JSON.stringify(merged));
+          }
+        };
+
+        const appQuery = query(collection(db, 'job_applications'), where('applicantId', '==', uid));
         const unsubApp = onSnapshot(
           appQuery,
           (snapshot) => {
-            const items: JobApplication[] = [];
-            snapshot.forEach((d) => items.push({ id: d.id, ...d.data() } as JobApplication));
-            setApplications(items);
+            applicantApps = [];
+            snapshot.forEach((d) => applicantApps.push({ id: d.id, ...d.data() } as JobApplication));
+            updateMergedApps();
           },
           (error) => {
-            console.warn('User applications sync notice:', error.message);
+            console.warn("User 'job_applications' sync notice:", error.message);
           }
         );
         unsubs.push(unsubApp);
+
+        const empAppQuery = query(collection(db, 'job_applications'), where('employerId', '==', uid));
+        const unsubEmpApp = onSnapshot(
+          empAppQuery,
+          (snapshot) => {
+            employerApps = [];
+            snapshot.forEach((d) => employerApps.push({ id: d.id, ...d.data() } as JobApplication));
+            updateMergedApps();
+          },
+          (error) => {
+            console.warn("Employer 'job_applications' sync notice:", error.message);
+          }
+        );
+        unsubs.push(unsubEmpApp);
       }
 
       // 6. Payments (User Scoped or Admin)
@@ -902,17 +991,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       unsubs.push(unsubRep);
 
-      // 8. Messages (Real-time Chat)
+      // 8. Messages (Real-time Chat with Sound & Phone Pop-up Notifications)
+      let initialMsgSync = true;
+      const seenMsgIds = new Set<string>();
+
       const unsubMsg = onSnapshot(
         collection(db, 'messages'),
         (snapshot) => {
           const items: ChatMessage[] = [];
           snapshot.forEach((d) => {
             const data = d.data() as ChatMessage;
-            if (isAdminUser || data.senderId === uid || data.recipientId === uid) {
-              items.push({ id: d.id, ...data });
+            if (isAdminUser || data.senderId === uid || data.recipientId === uid || data.receiverId === uid) {
+              const msgItem = { id: d.id, ...data };
+              items.push(msgItem);
+
+              if (!initialMsgSync && !seenMsgIds.has(d.id)) {
+                if ((data.recipientId === uid || data.receiverId === uid) && data.senderId !== uid) {
+                  // Trigger sound chime, phone vibration, and system pop-up notification
+                  showPhonePopUpNotification(
+                    `💬 ${data.senderName || 'New Message'} on JD Mart`,
+                    data.text,
+                    {
+                      tag: `msg-${d.id}`,
+                      onClick: () => {
+                        openChatWithUser(data.senderId, data.senderName);
+                      },
+                    }
+                  );
+
+                  // Create in-app notification
+                  const notifId = `notif-msg-${d.id}`;
+                  const chatNotif: AppNotification = {
+                    id: notifId,
+                    userId: uid,
+                    title: `New Message from ${data.senderName}`,
+                    message: data.text,
+                    time: 'Just now',
+                    type: 'system',
+                    read: false,
+                    createdAt: new Date().toISOString(),
+                  };
+                  setNotifications((prev) => [chatNotif, ...prev.filter((n) => n.id !== notifId)]);
+                }
+              }
+              seenMsgIds.add(d.id);
             }
           });
+
+          initialMsgSync = false;
           if (items.length > 0) {
             setMessages(items);
             localStorage.setItem('jdmart_messages', JSON.stringify(items));
@@ -1623,14 +1749,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       senderName: currentUser.name,
       senderRole: String(currentUser.role),
       recipientId,
+      receiverId: recipientId,
       recipientName,
       text,
       orderId,
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, newMsg]);
+
     try {
       await setDoc(doc(db, 'messages', id), newMsg);
+
+      // Trigger Webhook on server
+      fetch('/api/chat/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          recipientId,
+          recipientName,
+          text,
+          conversationId,
+          orderId,
+        }),
+      }).catch((err) => console.warn('Chat webhook dispatch notice:', err));
     } catch (err) {
       console.warn('Firestore message send error:', err);
     }
@@ -2901,17 +3044,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const applyForJob = async (
     jobId: string,
-    appData: { fullName: string; email: string; phone: string; coverNote: string; resumeSummary: string; resumeFileUrl?: string }
+    appData: {
+      fullName: string;
+      email: string;
+      phone: string;
+      coverNote: string;
+      resumeSummary: string;
+      resumeFileUrl?: string;
+      employerId?: string;
+      jobTitle?: string;
+      companyName?: string;
+    }
   ) => {
-    const job = jobs.find((j) => j.id === jobId);
+    let job = jobs.find((j) => j.id === jobId);
+    if (!job && jobId) {
+      try {
+        const snap = await getDoc(doc(db, 'jobs', jobId));
+        if (snap.exists()) {
+          job = { id: snap.id, ...snap.data() } as Job;
+        }
+      } catch (err) {
+        console.warn('Direct job lookup notice:', err);
+      }
+    }
+
+    const verifiedEmployerId = appData.employerId || job?.employerId || currentEmployer?.id || 'emp-user';
+    const verifiedJobTitle = appData.jobTitle || job?.title || 'Open Position';
+    const verifiedCompanyName = appData.companyName || job?.employerName || 'Employer';
+
+    console.log("[applyForJob] Writing to 'job_applications' collection with verified employerId:", {
+      jobId,
+      employerId: verifiedEmployerId,
+      jobEmployerId: job?.employerId,
+      jobTitle: verifiedJobTitle,
+      candidate: appData.fullName,
+    });
+
     const newAppId = `app-${Date.now()}`;
     const newApplication: JobApplication = {
       id: newAppId,
       jobId,
-      jobTitle: job?.title || 'Open Position',
-      companyName: job?.employerName || 'Employer',
-      employerId: job?.employerId,
-      applicantId: currentUser?.id || 'applicant-1',
+      jobTitle: verifiedJobTitle,
+      companyName: verifiedCompanyName,
+      employerId: verifiedEmployerId,
+      applicantId: currentUser?.id || `cand-${Date.now()}`,
       fullName: appData.fullName,
       email: appData.email,
       phone: appData.phone,
@@ -2922,17 +3098,70 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       appliedDate: new Date().toISOString().split('T')[0],
     };
 
-    setApplications((prev) => [newApplication, ...prev]);
+    setApplications((prev) => {
+      const updated = [newApplication, ...prev];
+      localStorage.setItem('jdmart_applications', JSON.stringify(updated));
+      return updated;
+    });
+
+    // Automatically register/update candidate in worker profiles so employer sees them in Worker Search
+    const candidateWorker: WorkerProfile = {
+      id: `worker-${newApplication.applicantId}`,
+      userId: newApplication.applicantId,
+      fullName: appData.fullName,
+      avatar: currentUser?.avatar || '/assets/icons/account.gif',
+      title: job?.title ? `Applicant: ${job.title}` : 'Skilled Candidate',
+      category: job?.category || 'Logistics',
+      skills: appData.resumeSummary
+        ? appData.resumeSummary.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
+        : ['Reliable', 'Communication', 'Work Ethic'],
+      experienceYears: 2,
+      experienceLevel: 'Intermediate',
+      location: job?.location || 'Freetown',
+      availability: 'Available Immediately',
+      bio: appData.coverNote || 'Active job candidate on JD Mart.',
+      phone: appData.phone,
+      email: appData.email,
+      resumeUrl: appData.resumeFileUrl,
+      rating: 5.0,
+      completedJobs: 0,
+    };
+
+    setWorkerProfiles((prev) => {
+      const filtered = prev.filter((w) => w.userId !== candidateWorker.userId && w.id !== candidateWorker.id);
+      const updatedWorkers = [candidateWorker, ...filtered];
+      localStorage.setItem('jdmart_worker_profiles', JSON.stringify(updatedWorkers));
+      return updatedWorkers;
+    });
 
     try {
-      await setDoc(doc(db, 'applications', newAppId), newApplication);
+      // Primary: write to 'job_applications' collection as required
+      await setDoc(doc(db, 'job_applications', newAppId), newApplication);
+      // Secondary: also sync to legacy 'applications' collection
+      await setDoc(doc(db, 'applications', newAppId), newApplication).catch(() => {});
+      await setDoc(doc(db, 'workerProfiles', candidateWorker.id), candidateWorker);
       if (job) {
         await updateDoc(doc(db, 'jobs', jobId), {
           applicantCount: (job.applicantCount || 0) + 1,
         });
       }
+      if (verifiedEmployerId) {
+        const notifId = `notif-${Date.now()}`;
+        const empNotif: AppNotification = {
+          id: notifId,
+          userId: verifiedEmployerId,
+          title: 'New Candidate Application Received',
+          message: `${appData.fullName} applied for ${verifiedJobTitle}. Review their details on your Employer Dashboard.`,
+          time: 'Just now',
+          type: 'job',
+          read: false,
+          createdAt: new Date().toISOString(),
+        };
+        setNotifications((prev) => [empNotif, ...prev]);
+        await setDoc(doc(db, 'notifications', notifId), empNotif).catch(() => {});
+      }
     } catch (e) {
-      console.warn('Firestore job application sync:', e);
+      console.warn('Firestore job application sync error:', e);
     }
 
     fetch('/api/email/send', {
@@ -2942,7 +3171,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         type: 'job_application',
         to: appData.email,
         recipientName: appData.fullName,
-        jobTitle: job?.title || 'Position',
+        jobTitle: verifiedJobTitle,
       }),
     }).catch(() => {});
 
@@ -2968,11 +3197,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       )
     );
     try {
-      await updateDoc(doc(db, 'applications', appId), {
+      const updates = {
         status,
         ...(notes ? { notes } : {}),
         ...(rating !== undefined ? { rating } : {}),
-      });
+      };
+      await updateDoc(doc(db, 'job_applications', appId), updates);
+      await updateDoc(doc(db, 'applications', appId), updates).catch(() => {});
     } catch (e) {
       console.warn('Firestore app status sync:', e);
     }
@@ -3569,9 +3800,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         reports,
         submitReport,
 
-        // Messages
+        // Messages & Real-Time Chat
         messages,
         sendMessage,
+        activeChatRecipient,
+        openChatWithUser,
+        closeChatModal,
+        isChatDrawerOpen,
+        setIsChatDrawerOpen,
+        testNotificationAlert,
 
         // Stores & Seller Flow
         stores,

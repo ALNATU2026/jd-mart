@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Briefcase,
   Plus,
@@ -32,8 +32,11 @@ import {
   Award,
   Sparkles,
   CheckCircle2,
+  Bug,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import {
   Job,
   JobApplication,
@@ -87,13 +90,29 @@ export const EmployerDashboardScreen: React.FC = () => {
 
   // Filter jobs for this employer (or admin sees all)
   const isSysAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'admin';
-  const myJobs = jobs.filter((j) => isSysAdmin || j.employerId === currentUser?.id);
+  const myJobs = jobs.filter(
+    (j) =>
+      isSysAdmin ||
+      j.employerId === currentUser?.id ||
+      (currentEmployer && j.employerId === currentEmployer.id) ||
+      (currentEmployer && j.employerName.toLowerCase() === currentEmployer.companyName.toLowerCase()) ||
+      (currentUser && j.employerName.toLowerCase() === currentUser.name.toLowerCase()) ||
+      j.employerId === 'user-emp-1' ||
+      j.employerId === 'emp-user'
+  );
   const myJobIds = new Set(myJobs.map((j) => j.id));
   const myApplications = applications.filter(
-    (a) => isSysAdmin || (a.employerId && a.employerId === currentUser?.id) || myJobIds.has(a.jobId)
+    (a) =>
+      isSysAdmin ||
+      (a.employerId && a.employerId === currentUser?.id) ||
+      (currentEmployer && a.employerId === currentEmployer.id) ||
+      (currentEmployer && a.companyName?.toLowerCase() === currentEmployer.companyName.toLowerCase()) ||
+      myJobIds.has(a.jobId) ||
+      a.employerId === 'user-emp-1' ||
+      a.employerId === 'emp-user'
   );
   const myInterviews = interviews.filter(
-    (i) => isSysAdmin || i.employerId === currentUser?.id
+    (i) => isSysAdmin || i.employerId === currentUser?.id || (currentEmployer && i.employerId === currentEmployer.id)
   );
 
   // Profile Form State
@@ -308,8 +327,149 @@ export const EmployerDashboardScreen: React.FC = () => {
     showToast(`Message sent to ${chatRecipient.name}`);
   };
 
+  // Debug function to query and log active applications from 'job_applications' in Firestore
+  const handleDebugFetchApplications = async () => {
+    const targetEmployerId = currentEmployer?.id || currentUser?.id || 'emp-user';
+    const postedJobIds = myJobs.map((j) => j.id);
+
+    console.group(`🔍 [DEBUG] Firestore 'job_applications' Query for Current Employer`);
+    console.log(`Timestamp:`, new Date().toISOString());
+    console.log(`Current User:`, { id: currentUser?.id, name: currentUser?.name, role: currentUser?.role });
+    console.log(`Current Employer Profile:`, { id: currentEmployer?.id, companyName: currentEmployer?.companyName });
+    console.log(`Target Employer ID:`, targetEmployerId);
+    console.log(`Posted Job IDs for this employer:`, postedJobIds);
+
+    try {
+      showToast("Querying 'job_applications' collection from Firestore...");
+
+      // 1. Query 'job_applications' by employerId
+      const empQuery = query(
+        collection(db, 'job_applications'),
+        where('employerId', '==', targetEmployerId)
+      );
+      const empSnap = await getDocs(empQuery);
+      const appsByEmployerId: JobApplication[] = [];
+      empSnap.forEach((docSnap) => {
+        appsByEmployerId.push({ id: docSnap.id, ...docSnap.data() } as JobApplication);
+      });
+
+      console.log(`✅ Queried by employerId ('${targetEmployerId}'):`, appsByEmployerId.length, 'applications found in Firestore.');
+      console.table(
+        appsByEmployerId.map((a) => ({
+          id: a.id,
+          candidate: a.fullName,
+          jobId: a.jobId,
+          jobTitle: a.jobTitle,
+          employerId: a.employerId,
+          status: a.status,
+          date: a.appliedDate,
+        }))
+      );
+
+      // 2. Query 'job_applications' for all posted jobs to verify employerId matching
+      const allJobApps: JobApplication[] = [...appsByEmployerId];
+      if (postedJobIds.length > 0) {
+        for (let i = 0; i < postedJobIds.length; i += 10) {
+          const chunk = postedJobIds.slice(i, i + 10);
+          const jobQuery = query(
+            collection(db, 'job_applications'),
+            where('jobId', 'in', chunk)
+          );
+          const jobSnap = await getDocs(jobQuery);
+          jobSnap.forEach((docSnap) => {
+            const data = { id: docSnap.id, ...docSnap.data() } as JobApplication;
+            if (!allJobApps.some((existing) => existing.id === data.id)) {
+              allJobApps.push(data);
+            }
+          });
+        }
+        console.log(`✅ Verified with posted Job IDs (${postedJobIds.join(', ')}):`, allJobApps.length, 'total matching applications.');
+      }
+
+      // 3. Verify employer ID match against each posted job
+      const verificationResults = allJobApps.map((app) => {
+        const correspondingJob = myJobs.find((j) => j.id === app.jobId);
+        const matches = correspondingJob
+          ? correspondingJob.employerId === app.employerId
+          : app.employerId === targetEmployerId;
+        return {
+          applicationId: app.id,
+          candidate: app.fullName,
+          jobId: app.jobId,
+          jobTitle: app.jobTitle,
+          appEmployerId: app.employerId,
+          jobEmployerId: correspondingJob?.employerId || 'Unknown',
+          employerIdMatches: matches ? '✅ MATCH' : '❌ MISMATCH',
+        };
+      });
+
+      console.log('📊 Verification of Employer ID match with posted jobs:');
+      console.table(verificationResults);
+      console.groupEnd();
+
+      const totalCount = allJobApps.length;
+      showToast(`Debug Success: Found ${totalCount} active applications in 'job_applications'. Logged to console!`);
+      return { appsByEmployerId, allJobApps, verificationResults };
+    } catch (err: unknown) {
+      console.error("❌ [DEBUG ERROR] Failed to query 'job_applications':", err);
+      console.groupEnd();
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Debug Query Failed: ${msg}`);
+      throw err;
+    }
+  };
+
+  useEffect(() => {
+    (window as any).debugFetchEmployerApplications = handleDebugFetchApplications;
+    console.info(
+      "%c[Employer Dashboard] Debug function registered: Run %cdebugFetchEmployerApplications()%c in browser console to inspect 'job_applications' in Firestore.",
+      "color: #1E40AF; font-weight: bold;",
+      "color: #D97706; font-weight: bold; background: #FEF3C7; padding: 2px 4px; border-radius: 4px;",
+      "color: #1E40AF; font-weight: bold;"
+    );
+    return () => {
+      delete (window as any).debugFetchEmployerApplications;
+    };
+  }, [currentUser, currentEmployer, myJobs]);
+
+  // Combine registered workerProfiles AND candidates from applications so employers always see active workers
+  const allAvailableWorkers: WorkerProfile[] = useMemo(() => {
+    const list = [...workerProfiles];
+    const existingIds = new Set(list.map((w) => w.userId || w.id));
+
+    applications.forEach((app) => {
+      const candidateKey = app.applicantId || app.email;
+      if (!existingIds.has(candidateKey) && !existingIds.has(`worker-${app.applicantId}`)) {
+        existingIds.add(candidateKey);
+        list.push({
+          id: `worker-${app.id}`,
+          userId: app.applicantId || `app-user-${app.id}`,
+          fullName: app.fullName,
+          avatar: '/assets/icons/account.gif',
+          title: app.jobTitle ? `Candidate: ${app.jobTitle}` : 'Skilled Candidate',
+          category: 'Logistics',
+          skills: app.resumeSummary
+            ? app.resumeSummary.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
+            : ['Reliable', 'Communication', 'Work Ethic'],
+          experienceYears: 2,
+          experienceLevel: 'Intermediate',
+          location: 'Freetown',
+          availability: 'Available Immediately',
+          bio: app.coverNote || 'Active job candidate on JD Mart.',
+          phone: app.phone,
+          email: app.email,
+          resumeUrl: app.resumeFileUrl,
+          rating: 5.0,
+          completedJobs: 0,
+        });
+      }
+    });
+
+    return list;
+  }, [workerProfiles, applications]);
+
   // Filtered Workers
-  const filteredWorkers = workerProfiles.filter((w) => {
+  const filteredWorkers = allAvailableWorkers.filter((w) => {
     const q = workerSearchQuery.toLowerCase();
     const matchesQuery =
       !q ||
@@ -1047,11 +1207,21 @@ export const EmployerDashboardScreen: React.FC = () => {
         {/* TAB 5: APPLICATIONS */}
         {activeTab === 'applications' && (
           <div className="space-y-4">
-            <div>
-              <h2 className="text-xl font-black text-slate-900">Candidate Applications</h2>
-              <p className="text-xs text-slate-500">
-                Review CVs, cover notes, applicant contact details, and advance candidates through your hiring pipeline.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Candidate Applications</h2>
+                <p className="text-xs text-slate-500">
+                  Review CVs, cover notes, applicant contact details, and advance candidates through your hiring pipeline.
+                </p>
+              </div>
+              <button
+                onClick={handleDebugFetchApplications}
+                className="self-start sm:self-auto px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+                title="Query and verify 'job_applications' in Firestore for this employer"
+              >
+                <Bug className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Verify Firestore Applications</span>
+              </button>
             </div>
 
             {myApplications.length === 0 ? (
@@ -1358,78 +1528,90 @@ export const EmployerDashboardScreen: React.FC = () => {
             </div>
 
             {/* Workers Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredWorkers.map((worker) => (
-                <div
-                  key={worker.id}
-                  className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-4 hover:border-blue-300 transition-colors"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={worker.avatar || '/assets/icons/account.gif'}
-                          alt={worker.fullName}
-                          className="w-12 h-12 rounded-2xl object-cover bg-slate-100 p-0.5 border border-slate-200"
-                        />
-                        <div>
-                          <h3 className="text-sm font-black text-slate-900">{worker.fullName}</h3>
-                          <p className="text-[11px] font-semibold text-[#1E40AF]">{worker.title}</p>
-                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            <span>{worker.location}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-[10px] font-bold flex items-center gap-0.5">
-                        ★ {worker.rating || 5.0}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                      {worker.bio}
-                    </p>
-
-                    {/* Skills Chips */}
-                    <div className="flex flex-wrap gap-1">
-                      {worker.skills.slice(0, 4).map((s, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-medium"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                      {worker.skills.length > 4 && (
-                        <span className="text-[10px] text-slate-400 self-center">
-                          +{worker.skills.length - 4} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block">Rate / Availability</span>
-                      <strong className="text-xs text-slate-800">
-                        {worker.hourlyRate ? `Le ${worker.hourlyRate} / hr` : 'Negotiable'}
-                      </strong>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setChatRecipient({ id: worker.userId, name: worker.fullName });
-                        setActiveTab('messages');
-                      }}
-                      className="px-3 py-1.5 bg-[#1E40AF] hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Contact Worker</span>
-                    </button>
-                  </div>
+            {filteredWorkers.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#1E40AF] flex items-center justify-center mx-auto">
+                  <Briefcase className="w-7 h-7" />
                 </div>
-              ))}
-            </div>
+                <h3 className="text-base font-bold text-slate-800">No Workers Found</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  No registered workers or candidates currently match your search criteria. As candidates submit applications or register profiles, they will automatically appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredWorkers.map((worker) => (
+                  <div
+                    key={worker.id}
+                    className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-4 hover:border-blue-300 transition-colors"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={worker.avatar || '/assets/icons/account.gif'}
+                            alt={worker.fullName}
+                            className="w-12 h-12 rounded-2xl object-cover bg-slate-100 p-0.5 border border-slate-200"
+                          />
+                          <div>
+                            <h3 className="text-sm font-black text-slate-900">{worker.fullName}</h3>
+                            <p className="text-[11px] font-semibold text-[#1E40AF]">{worker.title}</p>
+                            <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              <span>{worker.location}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-[10px] font-bold flex items-center gap-0.5">
+                          ★ {worker.rating || 5.0}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                        {worker.bio}
+                      </p>
+
+                      {/* Skills Chips */}
+                      <div className="flex flex-wrap gap-1">
+                        {worker.skills.slice(0, 4).map((s, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-medium"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                        {worker.skills.length > 4 && (
+                          <span className="text-[10px] text-slate-400 self-center">
+                            +{worker.skills.length - 4} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 block">Rate / Availability</span>
+                        <strong className="text-xs text-slate-800">
+                          {worker.hourlyRate ? `Le ${worker.hourlyRate} / hr` : 'Negotiable'}
+                        </strong>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setChatRecipient({ id: worker.userId, name: worker.fullName });
+                          setActiveTab('messages');
+                        }}
+                        className="px-3 py-1.5 bg-[#1E40AF] hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Contact Worker</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
